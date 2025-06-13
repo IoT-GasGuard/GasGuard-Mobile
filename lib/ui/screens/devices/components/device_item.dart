@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
+import '../../../../models/device.dart';
 
 class DeviceItem extends StatelessWidget {
-  final String name;
-  final String id;
-  final bool isOnline;
-  final String lastSeen;
+  final Device device;
   final VoidCallback onTap;
 
   const DeviceItem({
     Key? key,
-    required this.name,
-    required this.id,
-    required this.isOnline,
-    required this.lastSeen,
+    required this.device,
     required this.onTap,
   }) : super(key: key);
 
@@ -36,31 +31,38 @@ class DeviceItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
             child: Row(
               children: [
-                // Indicador de estado (online/offline)
+                // Icono del dispositivo según tipo
                 Container(
-                  width: 12,
-                  height: 12,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isOnline ? Colors.green : Colors.grey,
+                    color: const Color(0xFF4ECDC4).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.gas_meter,
+                    color: const Color(0xFF4ECDC4),
+                    size: 20,
                   ),
                 ),
                 const SizedBox(width: 16),
-                // Información del dispositivo
+
+                // Información principal
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        name,
+                        device.name,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        'Last seen: $lastSeen',
+                        'Ubicación: ${device.location}',
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
@@ -69,16 +71,72 @@ class DeviceItem extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Ícono de flecha
-                const Icon(
-                  Icons.chevron_right,
-                  color: Colors.white54,
-                )
+
+                // Información de estado
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: device.isOnline ? Colors.green : Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          device.isOnline ? 'Online' : 'Offline',
+                          style: TextStyle(
+                            color: device.isOnline ? Colors.green : Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Hace ${device.getTimeSinceLastSeen()}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+
+                    // Mostrar nivel si hay una lectura
+                    if (device.lastReading != null)
+                      Text(
+                        '${device.lastReading!.value.toStringAsFixed(1)}%',
+                        style: TextStyle(
+                          color: _getLevelColor(device.lastReading!.value),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                  ],
+                ),
+
+                // Icono de flecha
+                const Padding(
+                  padding: EdgeInsets.only(left: 8.0),
+                  child: Icon(
+                    Icons.chevron_right,
+                    color: Colors.white54,
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Color _getLevelColor(double value) {
+    if (value > 70) return Colors.red;
+    if (value > 30) return Colors.orange;
+    return const Color(0xFF4ECDC4);
   }
 }

@@ -23,7 +23,6 @@ class AppHeader extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Parte izquierda: Logo o Botón atrás + Logo
           Row(
             children: [
               if (showBackButton)
@@ -43,7 +42,6 @@ class AppHeader extends StatelessWidget {
             ],
           ),
           
-          // Parte derecha: Acción personalizada o menú hamburguesa
           customAction ?? IconButton(
             onPressed: onMenuPressed,
             icon: const Icon(

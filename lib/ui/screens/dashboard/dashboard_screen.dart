@@ -1,14 +1,15 @@
 import 'dart:async';
-
-import 'package:flutter/material.dart';
 import 'dart:math' as math;
-import 'package:gasguard_mobile/ui/screens/dashboard/components/air_quality_status.dart';
-import 'package:gasguard_mobile/ui/screens/dashboard/components/air_quality_chart.dart';
-import 'package:gasguard_mobile/ui/screens/dashboard/components/systems_control.dart';
-
-import '../../../utils/app_router.dart';
-import '../../../utils/top_menu.dart';
-import '../../common/app_header.dart';
+import 'package:flutter/material.dart';
+import 'package:gasguard_mobile/models/device.dart';
+import 'package:gasguard_mobile/models/gas_reading.dart';
+import 'package:gasguard_mobile/models/system_status.dart';
+import 'package:gasguard_mobile/ui/common/app_header.dart';
+import 'package:gasguard_mobile/utils/app_router.dart';
+import 'package:gasguard_mobile/utils/top_menu.dart';
+import 'components/air_quality_chart.dart';
+import 'components/air_quality_status.dart';
+import 'components/systems_control.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -17,179 +18,192 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _animationController;
+class _DashboardScreenState extends State<DashboardScreen> {
+  late Device selectedDevice;
+  late List<Device> devices;
 
-  // Estado de los actuadores
-  bool gasValveActive = true;
-  bool ventilationActive = false;
-  bool doorSystemActive = false;
-  bool lightingSystemActive = true;
-
-  double gasLevel = 20.0; // Nivel inicial seguro
-  List<double> gasLevelData = [];
+  Timer? _monitoringTimer;
   bool isEmergencyMode = false;
-  Timer? _monitoringTimer; // Timer para monitoreo continuo
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    )..repeat();
-
-    // Generar datos iniciales
-    _initialGasLevelData();
-
-    // Iniciar monitoreo continuo
+    _initializeDevices();
     _startGasMonitoring();
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    _monitoringTimer?.cancel(); // Cancelar timer al salir
-    super.dispose();
+  // Inicializar dispositivos con datos simulados
+  void _initializeDevices() {
+    final now = DateTime.now();
+    devices = [
+      Device(
+        id: 'DEV0001',
+        name: 'Sensor Cocina',
+        isOnline: true,
+        lastSeen: now,
+        location: 'Cocina',
+        lastReading: GasReading(
+          value: 15.0,
+          timestamp: now,
+        ),
+        systemStatus: SystemStatus(),
+        readings: _generateSampleReadings(now, 20, false),
+      ),
+      Device(
+        id: 'DEV0002',
+        name: 'Sensor Sala',
+        isOnline: true,
+        lastSeen: now,
+        location: 'Sala',
+        lastReading: GasReading(
+          value: 12.0,
+          timestamp: now,
+        ),
+        systemStatus: SystemStatus(),
+        readings: _generateSampleReadings(now, 20, false),
+      ),
+    ];
+
+    selectedDevice = devices.first;
   }
 
-  // Método para generar datos iniciales seguros
-  void _initialGasLevelData() {
-    gasLevelData.clear();
+  // Generar lecturas simuladas
+  List<GasReading> _generateSampleReadings(DateTime endTime, int count, bool includeEmergency) {
+    List<GasReading> readings = [];
     final random = math.Random();
-
-    // Generar datos iniciales seguros
-    for (int i = 0; i < 20; i++) {
-      gasLevelData.add(10.0 + random.nextDouble() * 15.0); // Entre 10% y 25% (seguro)
-    }
-
-    gasLevel = gasLevelData.last;
-  }
-
-  // Método para generar datos simulados (usado solo en _toggleEmergencyMode)
-  void _generateGasLevelData() {
-    gasLevelData.clear();
-    final random = math.Random();
-
-    if (isEmergencyMode) {
-      // En modo emergencia, generar valores peligrosos
-      for (int i = 0; i < 20; i++) {
-        // Simular aumento progresivo hasta nivel peligroso
-        double value = 30.0 + (i * 3.5);
-        if (value > 100) value = 100;
-        gasLevelData.add(value);
+    
+    for (int i = 0; i < count; i++) {
+      final timestamp = endTime.subtract(Duration(minutes: (count - i) * 10));
+      
+      double value;
+      bool isEmergencyReading = false;
+      
+      if (includeEmergency && i > count * 0.7) {
+        value = 70.0 + random.nextDouble() * 25.0;
+        isEmergencyReading = true;
+      } else {
+        value = 10.0 + random.nextDouble() * 20.0;
+        if (random.nextInt(100) < 5) {
+          value = 20.0 + random.nextDouble() * 30.0;
+        }
       }
-    } else {
-      // En modo normal, generar valores seguros
-      for (int i = 0; i < 20; i++) {
-        gasLevelData.add(10.0 + random.nextDouble() * 15.0); // Entre 10% y 25%
-      }
+      
+      readings.add(GasReading(
+        value: value,
+        timestamp: timestamp,
+        isEmergency: isEmergencyReading,
+      ));
     }
-
-    gasLevel = gasLevelData.last;
+    
+    return readings;
   }
-
+  
   // Método para monitoreo continuo
   void _startGasMonitoring() {
-    // Cancelar timer existente si hay
+    // Cancelar timer existente si hay uno
     _monitoringTimer?.cancel();
-
-    // Crear nuevo timer para actualización periódica
-    _monitoringTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+    
+    // Crear nuevo timer para actualizar cada 3 segundos
+    _monitoringTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
       if (!mounted) return;
-
+      
       setState(() {
-        // Obtener nueva lectura simulada
-        double newReading;
-
+        // Generar nueva lectura
+        final now = DateTime.now();
+        double newValue;
+        
         if (isEmergencyMode) {
-          // En modo emergencia, generar valores altos (peligrosos)
-          newReading = 70.0 + math.Random().nextDouble() * 25.0; // Entre 70% y 95%
+          // En emergencia, mantener niveles altos
+          newValue = 70.0 + math.Random().nextDouble() * 25.0;
+          
+          // Pequeña probabilidad de mejoría
+          if (math.Random().nextInt(100) < 10) {
+            newValue = 65.0 - math.Random().nextDouble() * 15.0;
+          }
         } else {
-          // En modo normal, generar valores bajos (seguros)
-          newReading = 10.0 + math.Random().nextDouble() * 15.0; // Entre 10% y 25%
-
-          // Pequeña probabilidad de una lectura ligeramente elevada
-          if (math.Random().nextInt(100) < 5) { // 5% de probabilidad
-            newReading = 25.0 + math.Random().nextDouble() * 20.0; // Entre 25% y 45%
+          // Lecturas normales con variaciones
+          newValue = 10.0 + math.Random().nextDouble() * 15.0;
+          
+          // Pequeña probabilidad de lectura anómala
+          if (math.Random().nextInt(100) < 5) {
+            newValue = 25.0 + math.Random().nextDouble() * 20.0;
           }
         }
-
-        gasLevel = newReading;
-
-        // Añadir a la gráfica y mantener tamaño
-        gasLevelData.add(newReading);
-        if (gasLevelData.length > 20) {
-          gasLevelData.removeAt(0);
-        }
-
-        // Activación automática de emergencia (para demostración)
-        if (newReading > 70 && !isEmergencyMode && math.Random().nextInt(100) < 2) {
+        
+        // Crear nueva lectura
+        final newReading = GasReading(
+          value: newValue,
+          timestamp: now,
+          isEmergency: newValue > 70,
+        );
+        
+        // Añadir a dispositivo seleccionado
+        selectedDevice.addReading(newReading);
+        
+        // Si es emergencia pero no estamos en modo emergencia, activarlo
+        if (newReading.isEmergency && !isEmergencyMode && math.Random().nextInt(100) < 5) {
           isEmergencyMode = true;
-          gasValveActive = false;
-          ventilationActive = true;
-          doorSystemActive = true;
           _showEmergencyAlert();
         }
       });
     });
   }
-
+  
+  // Método para cambiar entre modo normal y emergencia
   void _toggleEmergencyMode() {
-    _monitoringTimer?.cancel(); // Detener actualización automática temporalmente
+    _monitoringTimer?.cancel();
 
     setState(() {
       isEmergencyMode = !isEmergencyMode;
+      final now = DateTime.now();
 
       if (isEmergencyMode) {
-        // Activar protocolos de emergencia
-        gasValveActive = false;
-        ventilationActive = true;
-        doorSystemActive = true;
-
-        // Generar datos de simulación de emergencia
-        gasLevelData.clear();
-        for (int i = 0; i < 20; i++) {
-          // Simular aumento progresivo hasta nivel peligroso
-          double value = 30.0 + (i * 3.5);
-          if (value > 100) value = 100;
-          gasLevelData.add(value);
-        }
-
-        gasLevel = gasLevelData.last;
+        selectedDevice.systemStatus.activateEmergencyProtocol();
+        
+        final emergencyLevel = 75.0 + math.Random().nextDouble() * 20.0;
+        final newReading = GasReading(
+          value: emergencyLevel,
+          timestamp: now,
+          isEmergency: true,
+        );
+        selectedDevice.addReading(newReading);
+        
         _showEmergencyAlert();
       } else {
-        // Volver a modo normal
-        gasValveActive = true;
-        doorSystemActive = false;
-
-        // Generar datos seguros
-        gasLevelData.clear();
-        for (int i = 0; i < 20; i++) {
-          gasLevelData.add(10.0 + math.Random().nextDouble() * 15.0);
-        }
-
-        gasLevel = gasLevelData.last;
+        selectedDevice.systemStatus.restoreNormalOperation();
+        
+        final newReading = GasReading(
+          value: 15.0 + math.Random().nextDouble() * 10.0,
+          timestamp: now,
+          isEmergency: false,
+        );
+        selectedDevice.addReading(newReading);
       }
     });
 
-    // Reanudar monitoreo automático
     _startGasMonitoring();
   }
 
+  @override
+  void dispose() {
+    _monitoringTimer?.cancel();
+    super.dispose();
+  }
+  
+  // Mostrar alerta de emergencia
   void _showEmergencyAlert() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A2B3D),
-        title: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 30),
-            const SizedBox(width: 10),
-            const Text(
-              'ALERTA DE GAS',
+        title: Wrap( // Cambiado de Row a Wrap
+          spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+            Text(
+              'ALERTA DE EMERGENCIA',
               style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ],
@@ -199,14 +213,13 @@ class _DashboardScreenState extends State<DashboardScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Niveles de gas peligrosos: ${gasLevel.toStringAsFixed(2)}%',
-              style: const TextStyle(color: Colors.white),
+              'Se ha detectado una fuga de gas en ${selectedDevice.location}.',
+              style: TextStyle(color: Colors.white),
             ),
-            SizedBox(height: 10),
+            SizedBox(height: 16),
             Text(
-              'Protocolo de seguridad activado:',
-              style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
+              'Protocolos de seguridad activados:',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 5),
             _buildProtocolItem('Corte de suministro de gas'),
@@ -218,8 +231,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-                'ENTENDIDO', style: TextStyle(color: Color(0xFF4ECDC4))),
+            child: Text('ENTENDIDO', style: TextStyle(color: Color(0xFF4ECDC4))),
           ),
         ],
       ),
@@ -245,6 +257,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       backgroundColor: const Color(0xFF0A1A2A),
       body: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AppHeader(
               onMenuPressed: () => _showTopMenu(context),
@@ -260,63 +273,64 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
-                  child: ListView( // Cambiado a ListView para permitir scroll
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Estado de la calidad del aire
-                      AirQualityStatus(
-                        gasLevel: gasLevel,
-                        isEmergencyMode: isEmergencyMode,
-                        onEmergencyToggle: _toggleEmergencyMode,
-                      ),
+                      _buildDeviceSelector(),
                       const SizedBox(height: 20),
-
-                      // Gráfica de tiempo real
-                      AirQualityChart(
-                        gasLevelData: gasLevelData,
-                        isEmergencyMode: isEmergencyMode,
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Título para sistemas de seguridad
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 12.0),
-                        child: Text(
-                          'Sistemas de seguridad',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                          ),
+                      
+                      Container(
+                        height: 90,
+                        child: AirQualityStatus(
+                          gasLevel: selectedDevice.lastReading?.value ?? 0,
+                          isEmergencyMode: isEmergencyMode,
+                          onEmergencyToggle: _toggleEmergencyMode,
                         ),
                       ),
-
-                      // Controles de sistemas
-                      SystemsControl(
-                        gasValveActive: gasValveActive,
-                        ventilationActive: ventilationActive,
-                        doorSystemActive: doorSystemActive,
-                        lightingSystemActive: lightingSystemActive,
-                        isEmergencyMode: isEmergencyMode,
-                        onGasValveToggle: (value) {
-                          setState(() {
-                            gasValveActive = value;
-                          });
-                        },
-                        onVentilationToggle: (value) {
-                          setState(() {
-                            ventilationActive = value;
-                          });
-                        },
-                        onDoorSystemToggle: (value) {
-                          setState(() {
-                            doorSystemActive = value;
-                          });
-                        },
-                        onLightingToggle: (value) {
-                          setState(() {
-                            lightingSystemActive = value;
-                          });
-                        },
+                      const SizedBox(height: 15),
+                      
+                      Expanded(
+                        flex: 2,
+                        child: AirQualityChart(
+                          gasLevelData: selectedDevice.readings.map((r) => r.value).toList(),
+                          gasLevel: selectedDevice.lastReading?.value ?? 0,
+                          isEmergencyMode: isEmergencyMode,
+                          toggleEmergencyMode: _toggleEmergencyMode,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 20),
+                      
+                      // Control de sistemas
+                      Expanded(
+                        flex: 3,
+                        child: SystemsControl(
+                          gasValveActive: selectedDevice.systemStatus.gasValveActive,
+                          ventilationActive: selectedDevice.systemStatus.ventilationActive,
+                          doorSystemActive: selectedDevice.systemStatus.doorSystemActive,
+                          lightingSystemActive: selectedDevice.systemStatus.lightingSystemActive,
+                          isEmergencyMode: isEmergencyMode,
+                          onGasValveToggle: (value) {
+                            setState(() {
+                              selectedDevice.systemStatus.gasValveActive = value;
+                            });
+                          },
+                          onVentilationToggle: (value) {
+                            setState(() {
+                              selectedDevice.systemStatus.ventilationActive = value;
+                            });
+                          },
+                          onDoorSystemToggle: (value) {
+                            setState(() {
+                              selectedDevice.systemStatus.doorSystemActive = value;
+                            });
+                          },
+                          onLightingToggle: (value) {
+                            setState(() {
+                              selectedDevice.systemStatus.lightingSystemActive = value;
+                            });
+                          },
+                        ),
                       ),
                     ],
                   ),
@@ -325,6 +339,53 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+  
+  // Widget selector de dispositivo
+  Widget _buildDeviceSelector() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Color(0xFF0F1B2A),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Color(0xFF2A3B4D)),
+      ),
+      child: DropdownButton<Device>(
+        value: selectedDevice,
+        onChanged: (Device? newValue) {
+          if (newValue != null) {
+            setState(() {
+              selectedDevice = newValue;
+              isEmergencyMode = selectedDevice.lastReading?.isEmergency ?? false;
+            });
+          }
+        },
+        items: devices.map<DropdownMenuItem<Device>>((Device device) {
+          return DropdownMenuItem<Device>(
+            value: device,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.sensors,
+                  color: device.isOnline ? Color(0xFF4ECDC4) : Colors.grey,
+                  size: 18,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  '${device.name} (${device.location})',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+        dropdownColor: Color(0xFF0F1B2A),
+        underline: SizedBox(),
+        icon: Icon(Icons.arrow_drop_down, color: Colors.white),
+        style: TextStyle(color: Colors.white),
+        isExpanded: true,
       ),
     );
   }
@@ -340,20 +401,5 @@ class _DashboardScreenState extends State<DashboardScreen>
         },
       ),
     );
-  }
-
-  // Método opcional para generar lecturas simuladas con más control
-  double _getGasReading() {
-    if (isEmergencyMode) {
-      return 70.0 + math.Random().nextDouble() * 25.0; // Entre 70% y 95%
-    } else {
-      // Generar valor bajo con pequeña probabilidad de anomalía
-      final isAnomaly = math.Random().nextInt(100) < 5; // 5% de probabilidad
-      if (isAnomaly) {
-        return 25.0 + math.Random().nextDouble() * 20.0; // Entre 25% y 45%
-      } else {
-        return 10.0 + math.Random().nextDouble() * 15.0; // Entre 10% y 25%
-      }
-    }
   }
 }

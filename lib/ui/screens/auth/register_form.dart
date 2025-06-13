@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:gasguard_mobile/models/user.dart';
 import 'package:gasguard_mobile/ui/common/input_field.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../utils/app_router.dart';
 
 class RegisterForm extends StatefulWidget {
@@ -11,17 +13,16 @@ class RegisterForm extends StatefulWidget {
 }
 
 class _RegisterFormState extends State<RegisterForm> {
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -30,6 +31,15 @@ class _RegisterFormState extends State<RegisterForm> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Campo Nombre
+        CustomInputField(
+          label: 'Full Name',
+          controller: _nameController,
+          hintText: 'John Doe',
+          keyboardType: TextInputType.name,
+        ),
+        const SizedBox(height: 24),
+        
         // Campo Email
         CustomInputField(
           label: 'Email',
@@ -38,11 +48,12 @@ class _RegisterFormState extends State<RegisterForm> {
           keyboardType: TextInputType.emailAddress,
         ),
         const SizedBox(height: 24),
+        
         // Campo Password
         CustomInputField(
           label: 'Password',
           controller: _passwordController,
-          hintText: 'ejemplo123',
+          hintText: '••••••••',
           obscureText: _obscurePassword,
           suffixIcon: IconButton(
             icon: Icon(
@@ -56,29 +67,9 @@ class _RegisterFormState extends State<RegisterForm> {
             },
           ),
         ),
-        const SizedBox(height: 24),
-        // Campo Confirm Password
-        CustomInputField(
-          label: 'Confirm password',
-          controller: _confirmPasswordController,
-          hintText: 'ejemplo123',
-          obscureText: _obscureConfirmPassword,
-          suffixIcon: IconButton(
-            icon: Icon(
-              _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-              color: Colors.grey[400],
-            ),
-            onPressed: () {
-              setState(() {
-                _obscureConfirmPassword = !_obscureConfirmPassword;
-              });
-            },
-          ),
-        ),
         const SizedBox(height: 32),
-        // Botón Register
         _buildRegisterButton(),
-        const Spacer(),
+        const SizedBox(height: 20),
       ],
     );
   }
@@ -111,30 +102,55 @@ class _RegisterFormState extends State<RegisterForm> {
   }
 
   void _handleRegister() {
-    // Lógica de registro
+
+    String name = _nameController.text.trim();
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
-    String confirmPassword = _confirmPasswordController.text.trim();
 
-    if (email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    if (name.isEmpty || email.isEmpty || password.isEmpty) {
       _showSnackBar('Por favor completa todos los campos');
-      return;
-    }
-
-    if (password != confirmPassword) {
-      _showSnackBar('Las contraseñas no coinciden');
       return;
     }
 
     _showSnackBar('Creando cuenta...');
 
-    // Aquí implementarías el registro real
-    // authProvider.register(email, password);
+    // Crear objeto User
+    final newUser = User(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      email: email,
+      deviceIds: [], // Usuario nuevo sin dispositivos
+    );
 
-    Future.delayed(const Duration(seconds: 1), () {
-      Navigator.pushReplacementNamed(context, AppRouter.dashboard);
+    // Guardar el usuario simuldo
+    _saveUser(newUser, password).then((_) {
+      // Una vez guardado, navegar al dashboard
+      Future.delayed(const Duration(seconds: 1), () {
+        Navigator.pushReplacementNamed(
+          context, 
+          AppRouter.dashboard,
+          arguments: {'user': newUser},
+        );
+      });
+    }).catchError((error) {
+      _showSnackBar('Error al crear cuenta: $error');
     });
+  }
 
+  // Método para guardar usuario en SharedPreferences)
+  Future<void> _saveUser(User user, String password) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      await prefs.setString('user_data', json.encode(user.toJson()));
+      
+      await prefs.setString('user_password', password);
+      
+      await prefs.setBool('is_logged_in', true);
+    } catch (e) {
+      print('Error al guardar usuario: $e');
+      throw Exception('No se pudo guardar la cuenta');
+    }
   }
 
   void _showSnackBar(String message) {

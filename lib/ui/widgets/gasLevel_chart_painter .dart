@@ -1,6 +1,3 @@
-
-
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -91,7 +88,6 @@ class GasLevelChartPainter extends CustomPainter {
       ..color = isEmergency ? Colors.red : const Color(0xFF4ECDC4)
       ..style = PaintingStyle.fill;
 
-    // Solo dibujar el último punto para no sobrecargar la gráfica
     final double lastX = (data.length - 1) * xStep;
     final double lastY = size.height - (data.last / 100) * size.height;
     canvas.drawCircle(Offset(lastX, lastY), 5, dotPaint);

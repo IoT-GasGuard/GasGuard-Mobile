@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:gasguard_mobile/models/device.dart'; // ¡FALTA ESTA IMPORTACIÓN!
 import 'package:gasguard_mobile/ui/screens/auth/auth_screen.dart';
 import 'package:gasguard_mobile/ui/screens/dashboard/dashboard_screen.dart';
 import 'package:gasguard_mobile/ui/screens/devices/devices_screen.dart';
@@ -22,7 +23,10 @@ class AppRouter {
   static Route<dynamic> generateRoute(RouteSettings settings) {
     switch (settings.name) {
       case deviceDetail:
-        final Map<String, dynamic>? device = settings.arguments as Map<String, dynamic>?;
+        // Corregir esta parte
+        final args = settings.arguments as Map<String, dynamic>?;
+        final device = args != null ? args['device'] as Device? : null;
+        
         return MaterialPageRoute(
           builder: (_) => DeviceDetailScreen(device: device),
         );
