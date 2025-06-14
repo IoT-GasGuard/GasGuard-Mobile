@@ -123,7 +123,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
             // Header con el logo y menú
             AppHeader(
               title: 'Dispositivos',
-              onMenuPressed: () => _showTopMenu(context),
+              onMenuPressed: () => _showTopMenu(),
             ),
 
             // Contenido principal
@@ -299,16 +299,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   // Muestra el menú superior
-  void _showTopMenu(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (context) => TopMenu(
-        onLogout: () {
-          Navigator.pop(context);
-          Navigator.pushReplacementNamed(context, AppRouter.auth);
-        },
-      ),
-    );
+  void _showTopMenu() {
+    TopMenu.showMenu(context);
   }
 }

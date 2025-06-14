@@ -5,6 +5,7 @@ import 'package:gasguard_mobile/models/system_status.dart';
 import 'package:gasguard_mobile/ui/common/app_header.dart';
 import 'dart:math' as math;
 
+import '../../../utils/top_menu.dart';
 import 'components/device_chart.dart';
 import 'components/device_status.dart';
 import 'components/device_systems_control.dart';
@@ -94,7 +95,7 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
               title: isNewDevice ? 'Nuevo Dispositivo' : device.name,
               showBackButton: true,
               onBackPressed: () => Navigator.pop(context),
-              onMenuPressed: () {},
+              onMenuPressed: () => TopMenu.showMenu(context),
             ),
 
             // Contenido principal

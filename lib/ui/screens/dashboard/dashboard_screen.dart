@@ -260,7 +260,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AppHeader(
-              onMenuPressed: () => _showTopMenu(context),
+              onMenuPressed: () => TopMenu.showMenu(context),
             ),
             Expanded(
               child: Container(
@@ -386,19 +386,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         icon: Icon(Icons.arrow_drop_down, color: Colors.white),
         style: TextStyle(color: Colors.white),
         isExpanded: true,
-      ),
-    );
-  }
-
-  void _showTopMenu(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (context) => TopMenu(
-        onLogout: () {
-          Navigator.pop(context);
-          Navigator.pushReplacementNamed(context, AppRouter.auth);
-        },
       ),
     );
   }

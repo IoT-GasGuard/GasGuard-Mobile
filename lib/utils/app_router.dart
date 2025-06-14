@@ -5,18 +5,22 @@ import 'package:gasguard_mobile/ui/screens/dashboard/dashboard_screen.dart';
 import 'package:gasguard_mobile/ui/screens/devices/devices_screen.dart';
 import 'package:gasguard_mobile/ui/screens/devices/device_detail_screen.dart';
 
+import '../ui/screens/Analytics/report_analytics_screen.dart';
+
 class AppRouter {
   /// Rutas estáticas de la aplicación
   static const String auth = '/';
   static const String dashboard = '/dashboard';
   static const String devices = '/devices';
   static const String deviceDetail = '/device-detail';
+  static const String analytics = '/analytics'; 
 
   static Map<String, WidgetBuilder> getRoutes() {
     return {
       auth: (context) => const AuthScreen(),
       dashboard: (context) => const DashboardScreen(),
       devices: (context) => const DevicesScreen(),
+      analytics: (context) => const ReportsAnalyticsScreen(),
     };
   }
 
