@@ -3,11 +3,36 @@ import 'package:gasguard_mobile/utils/app_router.dart';
 
 class TopMenu extends StatelessWidget {
   final VoidCallback onLogout;
+  final VoidCallback? onAnalytics; 
 
   const TopMenu({
     Key? key,
     required this.onLogout,
+    this.onAnalytics, 
   }) : super(key: key);
+
+  static void showMenu(BuildContext context) {
+    // Obtener la ruta actual
+    final String currentRoute = ModalRoute.of(context)?.settings.name ?? '';
+    
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (context) => TopMenu(
+        onLogout: () {
+          Navigator.pop(context);
+          Navigator.pushReplacementNamed(context, AppRouter.auth);
+        },
+        onAnalytics: () {
+          Navigator.pop(context);
+          // Solo navegar a analytics si no estamos ya en esa pantalla
+          if (currentRoute != AppRouter.analytics) {
+            Navigator.pushNamed(context, AppRouter.analytics);
+          }
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +106,18 @@ class TopMenu extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.pushNamed(context, AppRouter.devices);
+                    },
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.analytics,
+                    title: 'Analytics & Reports',
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (onAnalytics != null) {
+                        onAnalytics!();
+                      } else {
+                        Navigator.pushNamed(context, AppRouter.analytics);
+                      }
                     },
                   ),
                   const Divider(color: Color(0xFF2A3B4D), height: 1),
