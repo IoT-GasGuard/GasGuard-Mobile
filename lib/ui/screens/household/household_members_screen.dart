@@ -72,7 +72,6 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
           children: [
             AppHeader(
               title: "Household Members",
-              showBackButton: true,
               onBackPressed: () => Navigator.pop(context),
               onMenuPressed: () => TopMenu.showMenu(context),
             ),
