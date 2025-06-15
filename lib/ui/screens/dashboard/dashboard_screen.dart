@@ -5,7 +5,6 @@ import 'package:gasguard_mobile/models/device.dart';
 import 'package:gasguard_mobile/models/gas_reading.dart';
 import 'package:gasguard_mobile/models/system_status.dart';
 import 'package:gasguard_mobile/ui/common/app_header.dart';
-import 'package:gasguard_mobile/utils/app_router.dart';
 import 'package:gasguard_mobile/utils/top_menu.dart';
 import 'components/air_quality_chart.dart';
 import 'components/air_quality_status.dart';

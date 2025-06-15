@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:gasguard_mobile/models/device.dart'; // ¡FALTA ESTA IMPORTACIÓN!
+import 'package:gasguard_mobile/models/device.dart';
 import 'package:gasguard_mobile/ui/screens/auth/auth_screen.dart';
 import 'package:gasguard_mobile/ui/screens/dashboard/dashboard_screen.dart';
 import 'package:gasguard_mobile/ui/screens/devices/devices_screen.dart';
 import 'package:gasguard_mobile/ui/screens/devices/device_detail_screen.dart';
 
 import '../ui/screens/Analytics/report_analytics_screen.dart';
+import '../ui/screens/lighting/lighting_screen.dart';
 
 class AppRouter {
   /// Rutas estáticas de la aplicación
@@ -14,6 +15,8 @@ class AppRouter {
   static const String devices = '/devices';
   static const String deviceDetail = '/device-detail';
   static const String analytics = '/analytics'; 
+  static const String lighting = '/lighting';
+
 
   static Map<String, WidgetBuilder> getRoutes() {
     return {
@@ -21,6 +24,7 @@ class AppRouter {
       dashboard: (context) => const DashboardScreen(),
       devices: (context) => const DevicesScreen(),
       analytics: (context) => const ReportsAnalyticsScreen(),
+      lighting: (context) => const LightingScreen(), 
     };
   }
 

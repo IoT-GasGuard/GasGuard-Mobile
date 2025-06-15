@@ -4,6 +4,7 @@ import 'package:gasguard_mobile/models/gas_incident.dart';
 import 'package:gasguard_mobile/ui/screens/Analytics/components/gas_incidents_tab.dart';
 import 'package:gasguard_mobile/ui/screens/Analytics/components/normal_operations_tab.dart';
 import 'package:gasguard_mobile/utils/top_menu.dart';
+import '../../common/app_header.dart';
 
 class ReportsAnalyticsScreen extends StatefulWidget {
   const ReportsAnalyticsScreen({super.key});
@@ -31,7 +32,6 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
         'Alert sent to emergency contacts'
       ],
     ),
-    // Otros incidentes...
   ];
 
   // Datos de ejemplo para promedios diarios
@@ -77,31 +77,12 @@ class _ReportsAnalyticsScreenState extends State<ReportsAnalyticsScreen> {
   }
 
   Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Image.asset(
-            'assets/logo_gasguard.png', 
-            width: 30,
-            height: 30,
-          ),
-          // Menú hamburguesa
-          IconButton(
-            onPressed: () {
-              _showTopMenu();
-            },
-            icon: const Icon(
-              Icons.menu,
-              color: Color(0xFF4ECDC4),
-              size: 28,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  return AppHeader(
+    title: "", 
+    onBackPressed: () => Navigator.pop(context),
+    onMenuPressed: () => TopMenu.showMenu(context),
+  );
+}
 
   Widget _buildTabSelector() {
     return Padding(
