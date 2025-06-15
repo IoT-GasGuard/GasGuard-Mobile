@@ -12,7 +12,6 @@ class TopMenu extends StatelessWidget {
   }) : super(key: key);
 
   static void showMenu(BuildContext context) {
-    // Obtener la ruta actual
     final String currentRoute = ModalRoute.of(context)?.settings.name ?? '';
     
     showDialog(
@@ -25,7 +24,6 @@ class TopMenu extends StatelessWidget {
         },
         onAnalytics: () {
           Navigator.pop(context);
-          // Solo navegar a analytics si no estamos ya en esa pantalla
           if (currentRoute != AppRouter.analytics) {
             Navigator.pushNamed(context, AppRouter.analytics);
           }
@@ -36,6 +34,8 @@ class TopMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final String currentRoute = ModalRoute.of(context)?.settings.name ?? '';
+    
     // Envuelve todo el contenido con Material
     return Material(
       type: MaterialType.transparency,
@@ -97,28 +97,44 @@ class TopMenu extends StatelessWidget {
                     title: 'Dashboard',
                     onTap: () {
                       Navigator.pop(context);
-                      Navigator.pushReplacementNamed(context, AppRouter.dashboard);
+                      if (currentRoute != AppRouter.dashboard) {
+                        Navigator.pushReplacementNamed(context, AppRouter.dashboard);
+                      }
                     },
+                    isActive: currentRoute == AppRouter.dashboard,
                   ),
                   _buildMenuItem(
                     icon: Icons.device_hub,
                     title: 'Devices',
                     onTap: () {
                       Navigator.pop(context);
-                      Navigator.pushNamed(context, AppRouter.devices);
+                      if (currentRoute != AppRouter.devices) {
+                        Navigator.pushNamed(context, AppRouter.devices);
+                      }
                     },
+                    isActive: currentRoute == AppRouter.devices,
                   ),
                   _buildMenuItem(
                     icon: Icons.analytics,
                     title: 'Analytics & Reports',
                     onTap: () {
                       Navigator.pop(context);
-                      if (onAnalytics != null) {
-                        onAnalytics!();
-                      } else {
+                      if (currentRoute != AppRouter.analytics) {
                         Navigator.pushNamed(context, AppRouter.analytics);
                       }
                     },
+                    isActive: currentRoute == AppRouter.analytics,
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.lightbulb_outline,
+                    title: 'Lighting Control',
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (currentRoute != AppRouter.lighting) {
+                        Navigator.pushNamed(context, AppRouter.lighting);
+                      }
+                    },
+                    isActive: currentRoute == AppRouter.lighting,
                   ),
                   const Divider(color: Color(0xFF2A3B4D), height: 1),
                   _buildMenuItem(
@@ -139,10 +155,21 @@ class TopMenu extends StatelessWidget {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    bool isActive = false,  
   }) {
     return ListTile(
-      leading: Icon(icon, color: const Color(0xFF4ECDC4)),
-      title: Text(title, style: const TextStyle(color: Color(0xFF4ECDC4))),
+      leading: Icon(
+        icon, 
+        color: isActive ? Colors.white : const Color(0xFF4ECDC4),
+      ),
+      title: Text(
+        title, 
+        style: TextStyle(
+          color: isActive ? Colors.white : const Color(0xFF4ECDC4),
+          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      tileColor: isActive ? const Color(0xFF0F1B2A) : null,
       onTap: onTap,
     );
   }
