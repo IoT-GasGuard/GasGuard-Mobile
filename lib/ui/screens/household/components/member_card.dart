@@ -45,16 +45,17 @@ class MemberCard extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        if (member.isEmergencyContact) ...[
-                          const SizedBox(width: 8),
+                        const SizedBox(width: 8),
+                        if (member.isEmergencyContact)
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
-                              vertical: 2,
+                              vertical: 3,
                             ),
                             decoration: BoxDecoration(
                               color: Colors.red.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.red.shade700, width: 1),
                             ),
                             child: const Text(
                               'Emergency Contact',
@@ -65,35 +66,43 @@ class MemberCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                        ],
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     _buildContactInfo(Icons.email, member.email),
-                    const SizedBox(height: 4),
-                    _buildContactInfo(Icons.phone, member.phoneNumber),
                     const SizedBox(height: 8),
+                    _buildContactInfo(Icons.phone, member.phoneNumber),
+                    const SizedBox(height: 12),
+                    // Mejora el aspecto de las notificaciones
                     Row(
                       children: [
-                        Icon(
-                          member.notificationsEnabled
-                              ? Icons.notifications_active
-                              : Icons.notifications_off,
-                          color: member.notificationsEnabled
-                              ? const Color(0xFF4ECDC4)
-                              : Colors.grey,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          member.notificationsEnabled
-                              ? 'Notifications ON'
-                              : 'Notifications OFF',
+                        const Text(
+                          "Notifications: ",
                           style: TextStyle(
-                            color: member.notificationsEnabled
-                                ? const Color(0xFF4ECDC4)
-                                : Colors.grey,
+                            color: Colors.grey,
                             fontSize: 12,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: member.notificationsEnabled
+                                ? const Color(0xFF4ECDC4).withOpacity(0.2)
+                                : Colors.grey.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            member.notificationsEnabled ? 'ON' : 'OFF',
+                            style: TextStyle(
+                              color: member.notificationsEnabled
+                                  ? const Color(0xFF4ECDC4)
+                                  : Colors.grey,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -103,20 +112,33 @@ class MemberCard extends StatelessWidget {
               ),
               Column(
                 children: [
-                  IconButton(
-                    onPressed: onEdit,
-                    icon: const Icon(
-                      Icons.edit,
-                      color: Color(0xFF4ECDC4),
-                      size: 20,
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0A1A2A),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: IconButton(
+                      onPressed: onEdit,
+                      icon: const Icon(
+                        Icons.edit,
+                        color: Color(0xFF4ECDC4),
+                        size: 20,
+                      ),
                     ),
                   ),
-                  IconButton(
-                    onPressed: onDelete,
-                    icon: const Icon(
-                      Icons.delete,
-                      color: Colors.red,
-                      size: 20,
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0A1A2A),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: IconButton(
+                      onPressed: onDelete,
+                      icon: const Icon(
+                        Icons.delete,
+                        color: Colors.red,
+                        size: 20,
+                      ),
                     ),
                   ),
                 ],

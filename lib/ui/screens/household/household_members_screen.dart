@@ -45,39 +45,16 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
           children: [
             _buildHeader(),
             Expanded(
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1A2B3D),
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(30),
-                    topRight: Radius.circular(30),
-                  ),
-                ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20.0),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Household Members',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            _buildRegisteredMembers(),
-                            const SizedBox(height: 30),
-                            _buildNotificationSettings(),
-                          ],
-                        ),
-                      ),
-                    ),
-                    _buildAddMemberButton(),
+                    const SizedBox(height: 20),
+                    _buildRegisteredMembers(),
+                    const SizedBox(height: 30),
+                    _buildNotificationSettings(),
+                    const SizedBox(height: 80), // Espacio para el botón flotante
                   ],
                 ),
               ),
@@ -85,9 +62,16 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
           ],
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddMemberDialog,
+        backgroundColor: const Color(0xFF4ECDC4),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Member'),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
-
   Widget _buildHeader() {
     return AppHeader(
       title: "Household Members",
@@ -101,21 +85,74 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Registered Members',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.people,
+                color: Colors.blue,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Registered Members',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
-        ..._members.map((member) => MemberCard(
-          member: member,
-          onEdit: () => _showEditMemberDialog(member),
-          onDelete: () => _showDeleteConfirmation(member),
-        )),
+        const SizedBox(height: 20),
+        if (_members.isEmpty)
+          _buildEmptyState()
+        else
+          ..._members.map((member) => MemberCard(
+            member: member,
+            onEdit: () => _showEditMemberDialog(member),
+            onDelete: () => _showDeleteConfirmation(member),
+          )),
       ],
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 30),
+      alignment: Alignment.center,
+      child: Column(
+        children: [
+          Icon(
+            Icons.person_add_disabled,
+            color: Colors.grey[600],
+            size: 48,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No registered household members yet',
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Tap the "Add Member" button to register a new member',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 
@@ -133,45 +170,75 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4ECDC4).withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.notifications_active,
+                  color: Color(0xFF4ECDC4),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Notification Settings',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           const Text(
-            'Notification Settings',
+            'Gas Leak Alert Protocol',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'When gas levels exceed safety thresholds, the following actions will be taken:',
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 12,
             ),
           ),
           const SizedBox(height: 16),
           _buildNotificationItem(
-            title: 'Gas Leak Alert Protocol',
-            subtitle: 'When gas levels exceed safety thresholds, all registered members receive alerts',
-          ),
-          const SizedBox(height: 12),
-          _buildNotificationItem(
             title: 'Emergency contacts receive immediate SMS and email alerts',
-            subtitle: '',
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _buildNotificationItem(
-            title: 'Emergency services as firefighters will be notified',
-            subtitle: '',
+            title: 'Emergency services as firefighters and 911 are notified',
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _buildNotificationItem(
-            title: 'Power supply shutoff for ventilation',
-            subtitle: '',
+            title: 'Opening of doors or windows for ventilation',
+          ),
+          const SizedBox(height: 10),
+          _buildNotificationItem(
+            title: 'Power supply shutoff for high levels of gas',
           ),
         ],
       ),
     );
   }
 
-  Widget _buildNotificationItem({required String title, required String subtitle}) {
+  Widget _buildNotificationItem({required String title}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          margin: const EdgeInsets.only(top: 2),
+          margin: const EdgeInsets.only(top: 5),
           width: 6,
           height: 6,
           decoration: const BoxDecoration(
@@ -181,58 +248,15 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
-              ),
-              if (subtitle.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ],
+          child: Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildAddMemberButton() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: SizedBox(
-        width: double.infinity,
-        height: 50,
-        child: ElevatedButton.icon(
-          onPressed: _showAddMemberDialog,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF4ECDC4),
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25),
-            ),
-          ),
-          icon: const Icon(Icons.add),
-          label: const Text(
-            'Add Member',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
     );
   }
 
