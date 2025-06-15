@@ -136,6 +136,17 @@ class TopMenu extends StatelessWidget {
                     },
                     isActive: currentRoute == AppRouter.lighting,
                   ),
+                  _buildMenuItem(
+                    icon: Icons.people,
+                    title: 'Household Members',
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (currentRoute != AppRouter.household) {
+                        Navigator.pushNamed(context, AppRouter.household);
+                      }
+                    },
+                    isActive: currentRoute == AppRouter.household,
+                  ),
                   const Divider(color: Color(0xFF2A3B4D), height: 1),
                   _buildMenuItem(
                     icon: Icons.logout,

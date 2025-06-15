@@ -6,6 +6,7 @@ import 'package:gasguard_mobile/ui/screens/devices/devices_screen.dart';
 import 'package:gasguard_mobile/ui/screens/devices/device_detail_screen.dart';
 
 import '../ui/screens/Analytics/report_analytics_screen.dart';
+import '../ui/screens/household/household_members_screen.dart';
 import '../ui/screens/lighting/lighting_screen.dart';
 
 class AppRouter {
@@ -16,6 +17,7 @@ class AppRouter {
   static const String deviceDetail = '/device-detail';
   static const String analytics = '/analytics'; 
   static const String lighting = '/lighting';
+  static const String household = '/household';
 
 
   static Map<String, WidgetBuilder> getRoutes() {
@@ -25,6 +27,7 @@ class AppRouter {
       devices: (context) => const DevicesScreen(),
       analytics: (context) => const ReportsAnalyticsScreen(),
       lighting: (context) => const LightingScreen(), 
+      household: (context) => const HouseholdMembersScreen(),
     };
   }
 
