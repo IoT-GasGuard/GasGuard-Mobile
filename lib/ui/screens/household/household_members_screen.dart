@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:gasguard_mobile/models/household_member.dart';
 import 'package:gasguard_mobile/utils/top_menu.dart';
-
 import '../../common/app_header.dart';
 import 'components/add_edit_member_dialog.dart';
 import 'components/member_card.dart';
+import 'components/search_filterBar.dart';
 
 class HouseholdMembersScreen extends StatefulWidget {
   const HouseholdMembersScreen({Key? key}) : super(key: key);
@@ -13,8 +13,8 @@ class HouseholdMembersScreen extends StatefulWidget {
   State<HouseholdMembersScreen> createState() => _HouseholdMembersScreenState();
 }
 
-class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
-  final List<HouseholdMember> _members = [
+class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with SingleTickerProviderStateMixin {
+  final List<HouseholdMember> _allMembers = [
     HouseholdMember(
       id: '1',
       fullName: 'Jair Velasquez',
@@ -35,26 +35,103 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
     ),
   ];
 
+  late List<HouseholdMember> _filteredMembers;
+  String _searchQuery = '';
+  bool _showEmergencyOnly = false;
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _filteredMembers = _allMembers;
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _filterMembers() {
+    setState(() {
+      _filteredMembers = _allMembers
+          .where((member) =>
+      member.fullName.toLowerCase().contains(_searchQuery.toLowerCase()) &&
+          (!_showEmergencyOnly || member.isEmergencyContact))
+          .toList();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0A1A2A),
       body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(),
+            AppHeader(
+              title: "Household Members",
+              showBackButton: true,
+              onBackPressed: () => Navigator.pop(context),
+              onMenuPressed: () => TopMenu.showMenu(context),
+            ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A2B3D),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(30),
+                    topRight: Radius.circular(30),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 20),
-                    _buildRegisteredMembers(),
-                    const SizedBox(height: 30),
-                    _buildNotificationSettings(),
-                    const SizedBox(height: 80), // Espacio para el botón flotante
+                    // Barra de búsqueda y filtro
+                    SearchFilterBar(
+                      onSearch: (query) {
+                        _searchQuery = query;
+                        _filterMembers();
+                      },
+                      onToggleEmergencyOnly: (value) {
+                        _showEmergencyOnly = value;
+                        _filterMembers();
+                      },
+                    ),
+
+                    // Pestañas (All Members / Emergency Contacts)
+                    TabBar(
+                      controller: _tabController,
+                      indicatorColor: const Color(0xFF4ECDC4),
+                      indicatorWeight: 3,
+                      labelColor: const Color(0xFF4ECDC4),
+                      unselectedLabelColor: Colors.grey,
+                      tabs: const [
+                        Tab(text: "All Members"),
+                        Tab(text: "Emergency Contacts"),
+                      ],
+                    ),
+
+                    // Contenido principal
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          // Tab 1: All Members
+                          _buildMembersList(_filteredMembers),
+
+                          // Tab 2: Emergency Contacts
+                          _buildMembersList(_filteredMembers.where((m) => m.isEmergencyContact).toList()),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -66,60 +143,37 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
         onPressed: _showAddMemberDialog,
         backgroundColor: const Color(0xFF4ECDC4),
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
+        icon: const Icon(Icons.person_add),
         label: const Text('Add Member'),
+        elevation: 4,
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-    );
-  }
-  Widget _buildHeader() {
-    return AppHeader(
-      title: "Household Members",
-      showBackButton: true,
-      onBackPressed: () => Navigator.pop(context),
-      onMenuPressed: () => TopMenu.showMenu(context),
     );
   }
 
-  Widget _buildRegisteredMembers() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.people,
-                color: Colors.blue,
-                size: 20,
-              ),
+  Widget _buildMembersList(List<HouseholdMember> members) {
+    if (members.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(20),
+      itemCount: members.length + 1,
+      itemBuilder: (context, index) {
+        if (index < members.length) {
+          return AnimatedOpacity(
+            opacity: 1.0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeIn,
+            child: MemberCard(
+              member: members[index],
+              onEdit: () => _showEditMemberDialog(members[index]),
+              onDelete: () => _showDeleteConfirmation(members[index]),
             ),
-            const SizedBox(width: 12),
-            const Text(
-              'Registered Members',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        if (_members.isEmpty)
-          _buildEmptyState()
-        else
-          ..._members.map((member) => MemberCard(
-            member: member,
-            onEdit: () => _showEditMemberDialog(member),
-            onDelete: () => _showDeleteConfirmation(member),
-          )),
-      ],
+          );
+        } else {
+          return _buildNotificationSettings();
+        }
+      },
     );
   }
 
@@ -128,6 +182,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
       padding: const EdgeInsets.symmetric(vertical: 30),
       alignment: Alignment.center,
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.person_add_disabled,
@@ -135,21 +190,21 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
             size: 48,
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'No registered household members yet',
             style: TextStyle(
-              color: Colors.grey[400],
               fontSize: 16,
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Tap the "Add Member" button to register a new member',
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
-            ),
             textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white70,
+            ),
           ),
         ],
       ),
@@ -158,13 +213,25 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
 
   Widget _buildNotificationSettings() {
     return Container(
+      margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F1B2A),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF142D40), Color(0xFF0F1E2E)],
+        ),
         borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            offset: const Offset(0, 4),
+            blurRadius: 8,
+          ),
+        ],
         border: Border.all(
-          color: const Color(0xFF2A3B4D),
-          width: 1,
+          color: const Color(0xFF2D4055),
+          width: 1.5,
         ),
       ),
       child: Column(
@@ -175,41 +242,43 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF4ECDC4).withOpacity(0.2),
+                  color: const Color(0xFF4ECDC4).withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
-                  Icons.notifications_active,
+                  Icons.info_outline,
                   color: Color(0xFF4ECDC4),
-                  size: 20,
+                  size: 24,
                 ),
               ),
-              const SizedBox(width: 12),
-              const Text(
-                'Notification Settings',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Text(
+                  'Gas Leak Alerts',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
           const Text(
-            'Gas Leak Alert Protocol',
+            'Safety measures during a gas leak:',
             style: TextStyle(
-              color: Colors.white,
+              color: Color(0xFF4ECDC4),
               fontSize: 16,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 6),
-          Text(
-            'When gas levels exceed safety thresholds, the following actions will be taken:',
+          const Text(
+            'When GasGuard detects a gas leak, the following actions are taken automatically:',
             style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 12,
+              color: Colors.white70,
+              fontSize: 14,
             ),
           ),
           const SizedBox(height: 16),
@@ -239,11 +308,17 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
       children: [
         Container(
           margin: const EdgeInsets.only(top: 5),
-          width: 6,
-          height: 6,
-          decoration: const BoxDecoration(
-            color: Color(0xFF4ECDC4),
-            shape: BoxShape.circle,
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: const Color(0xFF4ECDC4),
+            borderRadius: BorderRadius.circular(4),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF4ECDC4).withOpacity(0.5),
+                blurRadius: 4,
+              ),
+            ],
           ),
         ),
         const SizedBox(width: 12),
@@ -251,7 +326,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
           child: Text(
             title,
             style: const TextStyle(
-              color: Colors.white,
+              color: Colors.white70,
               fontSize: 14,
             ),
           ),
@@ -267,9 +342,16 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
         title: 'Add Member',
         onSave: (member) {
           setState(() {
-            _members.add(member.copyWith(
+            _allMembers.add(HouseholdMember(
               id: DateTime.now().millisecondsSinceEpoch.toString(),
+              fullName: member.fullName,
+              email: member.email,
+              phoneNumber: member.phoneNumber,
+              isEmergencyContact: member.isEmergencyContact,
+              gasLeakAlerts: member.gasLeakAlerts,
+              notificationsEnabled: member.notificationsEnabled,
             ));
+            _filterMembers();
           });
           Navigator.pop(context);
           _showSuccessSnackBar('Member added successfully');
@@ -286,10 +368,11 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
         member: member,
         onSave: (updatedMember) {
           setState(() {
-            final index = _members.indexWhere((m) => m.id == member.id);
+            final index = _allMembers.indexWhere((m) => m.id == member.id);
             if (index != -1) {
-              _members[index] = updatedMember;
+              _allMembers[index] = updatedMember;
             }
+            _filterMembers();
           });
           Navigator.pop(context);
           _showSuccessSnackBar('Member updated successfully');
@@ -322,7 +405,8 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> {
           TextButton(
             onPressed: () {
               setState(() {
-                _members.removeWhere((m) => m.id == member.id);
+                _allMembers.removeWhere((m) => m.id == member.id);
+                _filterMembers();
               });
               Navigator.pop(context);
               _showSuccessSnackBar('Member removed successfully');
