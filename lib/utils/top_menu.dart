@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gasguard_mobile/utils/app_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../shared/helpers/storage_helper.dart';
 
 class TopMenu extends StatelessWidget {
   final VoidCallback onLogout;
@@ -18,9 +21,14 @@ class TopMenu extends StatelessWidget {
       context: context,
       barrierColor: Colors.black54,
       builder: (context) => TopMenu(
-        onLogout: () {
+        onLogout: () async {
+          await StorageHelper.removeCredentials();
           Navigator.pop(context);
-          Navigator.pushReplacementNamed(context, AppRouter.auth);
+          Navigator.pushNamedAndRemoveUntil(
+            context,
+            AppRouter.auth,
+                (route) => false,
+          );
         },
         onAnalytics: () {
           Navigator.pop(context);

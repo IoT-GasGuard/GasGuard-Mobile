@@ -1,8 +1,9 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:gasguard_mobile/models/user.dart';
 import 'package:gasguard_mobile/ui/common/input_field.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:gasguard_mobile/shared/helpers/storage_helper.dart';
+import 'package:gasguard_mobile/service/auth_service.dart';
 import '../../../utils/app_router.dart';
 
 class LoginForm extends StatefulWidget {
@@ -26,23 +27,18 @@ class _LoginFormState extends State<LoginForm> {
 
   Future<void> _checkLoggedInUser() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      bool isLoggedIn = prefs.getBool('is_logged_in') ?? false;
+      String? token = await StorageHelper.getToken();
+      User? user = await StorageHelper.getUser();
       
-      if (isLoggedIn) {
-        String? userJson = prefs.getString('user_data');
-        if (userJson != null) {
-          User user = User.fromJson(json.decode(userJson));
-          
-          // Navegación después de la inicialización completa
-          Future.microtask(() {
-            Navigator.pushReplacementNamed(
-              context, 
-              AppRouter.dashboard,
-              arguments: {'user': user},
-            );
-          });
-        }
+      if (token != null && user != null) {
+        // Usuario ya logueado, navegar al dashboard
+        Future.microtask(() {
+          Navigator.pushReplacementNamed(
+            context, 
+            AppRouter.dashboard,
+            arguments: {'user': user},
+          );
+        });
       }
     } catch (e) {
       print('Error al verificar sesión: $e');
@@ -161,20 +157,25 @@ class _LoginFormState extends State<LoginForm> {
     });
 
     try {
-      // Verificar credenciales - versión demo
-      bool isAuthenticated = await _authenticateUser(email, password);
+      final response = await AuthService.signIn(email, password);
 
-      if (isAuthenticated) {
-        User user = await _getUserData();
+      if (response.statusCode == 200) {
+        final data = response.data;
+        final String token = data['token'] ?? '';
+        await StorageHelper.saveToken(token);
 
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('is_logged_in', true);
+        User user = User(
+          id: data['id']?.toString() ?? '',
+          email: email,
+          name: data['profile']?['name'] ?? 'Usuario',
+          phoneNumber: data['profile']?['phone_number'],
+          profileId: data['profileId']?.toString() ?? '',
+        );
+        
+        await StorageHelper.saveUser(user);
 
         _showSnackBar('¡Inicio de sesión exitoso!');
-
         await Future.delayed(const Duration(seconds: 1));
-
-        // Navegar al dashboard
         if (mounted) {
           Navigator.pushReplacementNamed(
             context,
@@ -182,68 +183,24 @@ class _LoginFormState extends State<LoginForm> {
             arguments: {'user': user},
           );
         }
-      } else {
-        _showSnackBar('Credenciales incorrectas');
       }
+    } on DioException catch (e) {
+      String errorMsg = 'Credenciales incorrectas';
+      if (e.response != null && e.response?.data != null) {
+        final data = e.response?.data;
+        if (data is Map && data['message'] != null) {
+          errorMsg = data['message'];
+        }
+      }
+      _showSnackBar(errorMsg);
     } catch (e) {
-      _showSnackBar('Error al iniciar sesión: $e');
+      _showSnackBar('Error de conexión: $e');
     } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
-    }
-  }
-
-  // Método para autenticar usuario (demo - SharedPreferences)
-  Future<bool> _authenticateUser(String email, String password) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userJson = prefs.getString('user_data');
-      final savedPassword = prefs.getString('user_password');
-      
-      if (userJson != null && savedPassword != null) {
-        final userData = json.decode(userJson);
-        final user = User.fromJson(userData);
-        
-        return user.email == email && savedPassword == password;
-      }
-      
-      // Si no hay usuario guardado, permitir un usuario demo
-      return email == 'demo@gasguard.com' && password == 'demo123';
-    } catch (e) {
-      print('Error al autenticar: $e');
-      return false;
-    }
-  }
-
-  // Método para obtener datos de usuario
-  Future<User> _getUserData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final userJson = prefs.getString('user_data');
-      
-      if (userJson != null) {
-        return User.fromJson(json.decode(userJson));
-      }
-      
-      // Usuario demo como fallback
-      return User(
-        id: 'demo123',
-        email: _emailController.text,
-        name: 'Usuario Demo',
-        deviceIds: ['device001', 'device002'],
-      );
-    } catch (e) {
-      print('Error al obtener usuario: $e');
-      // Usuario demo como fallback para error
-      return User(
-        id: 'demo123',
-        email: _emailController.text,
-        name: 'Usuario Demo',
-        deviceIds: [],
-      );
     }
   }
 

@@ -3,22 +3,27 @@ import 'system_status.dart';
 
 class Device {
   final String id;
+  String deviceId;
   String name;
   bool isOnline;
   DateTime lastSeen;
   String location;
+  String status; // "ONLINE", "OFFLINE", "ALERT"
+  final String profileId;
 
-  // Relación con otros modelos
   GasReading? lastReading;
   SystemStatus systemStatus;
   List<GasReading> readings;
 
   Device({
     required this.id,
+    required this.deviceId,
     required this.name,
     this.isOnline = true,
     required this.lastSeen,
     required this.location,
+    required this.status,
+    required this.profileId,
     this.lastReading,
     SystemStatus? systemStatus,
     List<GasReading>? readings,
@@ -26,7 +31,29 @@ class Device {
         this.systemStatus = systemStatus ?? SystemStatus(),
         this.readings = readings ?? [];
 
-  // Método para obtener tiempo desde última comunicación
+  factory Device.fromJson(Map<String, dynamic> json) {
+    return Device(
+      id: json['id']?.toString() ?? '',
+      deviceId: json['deviceId'] ?? json['device_id'] ?? '',
+      name: json['name'] ?? 'Dispositivo sin nombre',
+      location: json['location'] ?? 'Sin ubicación',
+      status: json['status'] ?? 'OFFLINE',
+      profileId: json['profileId']?.toString() ?? json['profile_id']?.toString() ?? '',
+      isOnline: (json['status'] ?? 'OFFLINE') == 'ONLINE',
+      lastSeen: json['lastReading'] != null ? 
+        DateTime.tryParse(json['lastReading']) ?? DateTime.now() : 
+        DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'deviceId': deviceId,
+    'name': name,
+    'location': location,
+    'status': status,
+    'profileId': profileId,
+  };
+
   String getTimeSinceLastSeen() {
     final difference = DateTime.now().difference(lastSeen);
     if (difference.inSeconds < 60) return '${difference.inSeconds} seg';
@@ -35,62 +62,19 @@ class Device {
     return '${difference.inDays} días';
   }
 
-  // Método para añadir una nueva lectura
   void addReading(GasReading reading) {
     readings.add(reading);
     lastReading = reading;
     lastSeen = reading.timestamp;
-
-    // Activar protocolos de emergencia si es necesario
-    if (reading.isEmergency || reading.value > 70) {
-      systemStatus.activateEmergencyProtocol();
+    isOnline = true;
+    
+    if (reading.isEmergency) {
+      status = 'ALERT';
+    } else {
+      status = 'ONLINE';
     }
-    // Restaurar operación normal si volvió a niveles seguros
-    else if (reading.value < 30 && readings.length > 1 &&
-        readings[readings.length - 2].value > 70) {
-      systemStatus.restoreNormalOperation();
+    if (readings.length > 50) {
+      readings.removeAt(0);
     }
-  }
-
-  // Método para obtener lecturas recientes (para la gráfica)
-  List<GasReading> getRecentReadings(int count) {
-    if (readings.length <= count) return List.from(readings);
-    return readings.sublist(readings.length - count);
-  }
-
-  // Conversión a JSON
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'isOnline': isOnline,
-    'lastSeen': lastSeen.toIso8601String(),
-    'location': location,
-    'lastReading': lastReading?.toJson(),
-    'systemStatus': systemStatus.toJson(),
-    'readings': readings.map((reading) => reading.toJson()).toList(),
-  };
-
-  // Constructor desde JSON
-  factory Device.fromJson(Map<String, dynamic> json) {
-    List<GasReading> readingsList = [];
-    if (json['readings'] != null) {
-      final List readingsJson = json['readings'] as List;
-      readingsList = readingsJson
-          .map((readingJson) => GasReading.fromJson(readingJson))
-          .toList();
-    }
-
-    return Device(
-      id: json['id'],
-      name: json['name'],
-      isOnline: json['isOnline'] ?? true,
-      lastSeen: DateTime.parse(json['lastSeen']),
-      location: json['location'],
-      lastReading: json['lastReading'] != null ?
-      GasReading.fromJson(json['lastReading']) : null,
-      systemStatus: json['systemStatus'] != null ?
-      SystemStatus.fromJson(json['systemStatus']) : null,
-      readings: readingsList,
-    );
   }
 }

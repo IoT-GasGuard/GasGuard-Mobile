@@ -6,6 +6,7 @@ class HouseholdMember {
   final bool isEmergencyContact;
   final bool gasLeakAlerts;
   final bool notificationsEnabled;
+  final String? profileId;
 
   HouseholdMember({
     required this.id,
@@ -15,6 +16,7 @@ class HouseholdMember {
     this.isEmergencyContact = false,
     this.gasLeakAlerts = true,
     this.notificationsEnabled = true,
+    this.profileId,
   });
 
   HouseholdMember copyWith({
@@ -25,6 +27,7 @@ class HouseholdMember {
     bool? isEmergencyContact,
     bool? gasLeakAlerts,
     bool? notificationsEnabled,
+    String? profileId,
   }) {
     return HouseholdMember(
       id: id ?? this.id,
@@ -34,30 +37,32 @@ class HouseholdMember {
       isEmergencyContact: isEmergencyContact ?? this.isEmergencyContact,
       gasLeakAlerts: gasLeakAlerts ?? this.gasLeakAlerts,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      profileId: profileId ?? this.profileId,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'fullName': fullName,
+      'name': fullName,
       'email': email,
-      'phoneNumber': phoneNumber,
-      'isEmergencyContact': isEmergencyContact,
-      'gasLeakAlerts': gasLeakAlerts,
-      'notificationsEnabled': notificationsEnabled,
+      'phone': phoneNumber,
+      'emergencyContact': isEmergencyContact,
+      'gasAlerts': gasLeakAlerts,
+      'profileId': profileId,
     };
   }
 
   factory HouseholdMember.fromJson(Map<String, dynamic> json) {
     return HouseholdMember(
-      id: json['id'],
-      fullName: json['fullName'],
-      email: json['email'],
-      phoneNumber: json['phoneNumber'],
-      isEmergencyContact: json['isEmergencyContact'] ?? false,
-      gasLeakAlerts: json['gasLeakAlerts'] ?? true,
-      notificationsEnabled: json['notificationsEnabled'] ?? true,
+      id: json['id']?.toString() ?? '',
+      fullName: json['name'] ?? '',
+      email: json['email'] ?? '',
+      phoneNumber: json['phone'] ?? '',
+      isEmergencyContact: json['emergencyContact'] ?? false,
+      gasLeakAlerts: json['gasAlerts'] ?? true,
+      notificationsEnabled: json['gasAlerts'] ?? true,
+      profileId: json['profileId']?.toString(),
     );
   }
 }

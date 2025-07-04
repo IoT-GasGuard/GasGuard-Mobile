@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
 import 'package:gasguard_mobile/models/device.dart';
-import 'package:gasguard_mobile/models/gas_reading.dart';
-import 'package:gasguard_mobile/models/system_status.dart';
 import 'package:gasguard_mobile/ui/common/app_header.dart';
 import 'package:gasguard_mobile/ui/screens/devices/components/device_item.dart';
+import 'package:gasguard_mobile/service/device_service.dart';
+import 'package:gasguard_mobile/shared/helpers/storage_helper.dart';
 import '../../../utils/app_router.dart';
 import '../../../utils/top_menu.dart';
 
@@ -16,8 +15,9 @@ class DevicesScreen extends StatefulWidget {
 }
 
 class _DevicesScreenState extends State<DevicesScreen> {
-  late List<Device> _devices;
+  List<Device> _devices = [];
   bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -25,92 +25,48 @@ class _DevicesScreenState extends State<DevicesScreen> {
     _loadDevices();
   }
 
-  void _loadDevices() {
-    // Simulamos una carga de datos
-    Future.delayed(const Duration(seconds: 1), () {
+  Future<void> _loadDevices() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // Obtener el usuario actual para conseguir su profileId
+      final user = await StorageHelper.getUser();
+      if (user == null || user.profileId.isEmpty) {
+        setState(() {
+          _error = 'No se pudo obtener información del usuario';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Llamar al backend para obtener dispositivos
+      final response = await DeviceService.getDevicesByProfile(user.profileId);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> devicesJson = response.data;
+        final List<Device> devices = devicesJson
+            .map((json) => Device.fromJson(json))
+            .toList();
+
+        setState(() {
+          _devices = devices;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error = 'Error al cargar dispositivos';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
-        final now = DateTime.now();
-        
-        _devices = [
-          Device(
-            id: 'DEV0001XXXXXX',
-            name: 'Sensor Cocina',
-            isOnline: true,
-            lastSeen: now,
-            location: 'Cocina',
-            lastReading: GasReading(
-              value: 15.0,
-              timestamp: now,
-            ),
-            systemStatus: SystemStatus(),
-            readings: _generateSampleReadings(now, 20, false),
-          ),
-          Device(
-            id: 'DEV0002XXXXXX',
-            name: 'Sensor Sala',
-            isOnline: true,
-            lastSeen: now.subtract(const Duration(minutes: 5)),
-            location: 'Sala',
-            lastReading: GasReading(
-              value: 12.0,
-              timestamp: now.subtract(const Duration(minutes: 5)),
-            ),
-            systemStatus: SystemStatus(),
-            readings: _generateSampleReadings(now.subtract(const Duration(minutes: 5)), 20, false),
-          ),
-          Device(
-            id: 'DEV0003XXXXXX',
-            name: 'Sensor Sótano',
-            isOnline: false,
-            lastSeen: now.subtract(const Duration(hours: 3)),
-            location: 'Sótano',
-            lastReading: GasReading(
-              value: 8.0,
-              timestamp: now.subtract(const Duration(hours: 3)),
-            ),
-            systemStatus: SystemStatus(lightingSystemActive: false),
-            readings: _generateSampleReadings(now.subtract(const Duration(hours: 3)), 20, false),
-          ),
-        ];
-        
+        _error = 'Error de conexión: $e';
         _isLoading = false;
       });
-    });
-  }
-  
-  // Generar lecturas de muestra
-  List<GasReading> _generateSampleReadings(DateTime endTime, int count, bool includeEmergency) {
-    List<GasReading> readings = [];
-    final random = math.Random();
-    
-    for (int i = 0; i < count; i++) {
-      final timestamp = endTime.subtract(Duration(minutes: (count - i) * 10));
-      
-      double value;
-      bool isEmergencyReading = false;
-      
-      if (includeEmergency && i > count * 0.7) {
-        // Lecturas de emergencia hacia el final
-        value = 70.0 + random.nextDouble() * 25.0;
-        isEmergencyReading = true;
-      } else {
-        // Lecturas normales
-        value = 10.0 + random.nextDouble() * 20.0;
-        
-        // Pequeña probabilidad de una lectura anómala
-        if (random.nextInt(100) < 5) {
-          value = 20.0 + random.nextDouble() * 30.0;
-        }
-      }
-      
-      readings.add(GasReading(
-        value: value,
-        timestamp: timestamp,
-        isEmergency: isEmergencyReading,
-      ));
     }
-    
-    return readings;
   }
 
   @override
@@ -152,7 +108,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          if (!_isLoading)
+                          if (!_isLoading && _error == null)
                             Text(
                               '${_devices.length} dispositivos',
                               style: const TextStyle(
@@ -168,9 +124,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
                       Expanded(
                         child: _isLoading
                             ? _buildLoadingState()
-                            : _devices.isEmpty
-                                ? _buildEmptyState()
-                                : _buildDevicesList(),
+                            : _error != null
+                                ? _buildErrorState()
+                                : _devices.isEmpty
+                                    ? _buildEmptyState()
+                                    : _buildDevicesList(),
                       ),
 
                       // Botón para añadir dispositivo
@@ -228,6 +186,39 @@ class _DevicesScreenState extends State<DevicesScreen> {
     );
   }
 
+  // Widget para mostrar errores
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 80,
+            color: Colors.red.withOpacity(0.7),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _error ?? 'Error desconocido',
+            style: TextStyle(
+              color: Colors.red.withOpacity(0.7),
+              fontSize: 18,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _loadDevices,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4ECDC4),
+            ),
+            child: const Text('Reintentar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Widget para mostrar cuando no hay dispositivos
   Widget _buildEmptyState() {
     return Center(
@@ -263,39 +254,63 @@ class _DevicesScreenState extends State<DevicesScreen> {
 
   // Widget para mostrar la lista de dispositivos
   Widget _buildDevicesList() {
-    return ListView.builder(
-      itemCount: _devices.length,
-      itemBuilder: (context, index) {
-        final device = _devices[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12.0),
-          child: DeviceItem(
-            device: device,
-            onTap: () => _navigateToDeviceDetail(context, device),
-          ),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _loadDevices,
+      backgroundColor: const Color(0xFF1A2B3D),
+      color: const Color(0xFF4ECDC4),
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _devices.length,
+        itemBuilder: (context, index) {
+          final device = _devices[index];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12.0),
+            child: DeviceItem(
+              device: device,
+              onTap: () => _navigateToDeviceDetail(context, device),
+            ),
+          );
+        },
+      ),
     );
   }
 
-  // Navegar a la pantalla de detalle del dispositivo
-  void _navigateToDeviceDetail(BuildContext context, Device device) {
-    Navigator.pushNamed(
+  void _navigateToDeviceDetail(BuildContext context, Device device) async {
+    final result = await Navigator.pushNamed(
       context,
       AppRouter.deviceDetail,
       arguments: {'device': device},
     );
+    
+    // Recargar la lista cuando se regrese con un resultado
+    if (result != null) {
+      _loadDevices();
+      
+      // Verificar si el dispositivo fue eliminado
+      if (result is Map && result['action'] == 'deleted') {
+        final deviceName = result['deviceName'] ?? 'El dispositivo';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$deviceName ha sido eliminado correctamente'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   // Navegar a la pantalla para añadir dispositivo
-  void _navigateToAddDevice(BuildContext context) {
-    Navigator.pushNamed(
+  void _navigateToAddDevice(BuildContext context) async {
+    final result = await Navigator.pushNamed(
       context,
       AppRouter.deviceDetail,
-    ).then((_) {
-      // Refrescar la lista cuando vuelva
+    );
+    
+    // Si hay un resultado, recargar la lista
+    if (result != null) { // 👈 Cambia esta condición para aceptar cualquier resultado
       _loadDevices();
-    });
+    }
   }
 
   // Muestra el menú superior

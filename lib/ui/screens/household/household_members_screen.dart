@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gasguard_mobile/models/household_member.dart';
+import 'package:gasguard_mobile/service/household_service.dart';
+import 'package:gasguard_mobile/shared/helpers/storage_helper.dart';
 import 'package:gasguard_mobile/utils/top_menu.dart';
 import '../../common/app_header.dart';
 import 'components/add_edit_member_dialog.dart';
@@ -14,43 +16,71 @@ class HouseholdMembersScreen extends StatefulWidget {
 }
 
 class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with SingleTickerProviderStateMixin {
-  final List<HouseholdMember> _allMembers = [
-    HouseholdMember(
-      id: '1',
-      fullName: 'Jair Velasquez',
-      email: 'jair.velasquez@gmail.com',
-      phoneNumber: '+51 945 343 538',
-      isEmergencyContact: true,
-      gasLeakAlerts: true,
-      notificationsEnabled: true,
-    ),
-    HouseholdMember(
-      id: '2',
-      fullName: 'Karlahen Centeno',
-      email: 'karlahen.centeno@gmail.com',
-      phoneNumber: '+51 945 343 538',
-      isEmergencyContact: false,
-      gasLeakAlerts: true,
-      notificationsEnabled: true,
-    ),
-  ];
-
+  List<HouseholdMember> _allMembers = [];
   late List<HouseholdMember> _filteredMembers;
   String _searchQuery = '';
   bool _showEmergencyOnly = false;
   late TabController _tabController;
+  
+  bool isLoading = true;
+  String? error;
 
   @override
   void initState() {
     super.initState();
-    _filteredMembers = _allMembers;
+    _filteredMembers = [];
     _tabController = TabController(length: 2, vsync: this);
+    _loadHouseholdMembers();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  // Cargar miembros del hogar desde el backend
+  Future<void> _loadHouseholdMembers() async {
+    setState(() {
+      isLoading = true;
+      error = null;
+    });
+
+    try {
+      final user = await StorageHelper.getUser();
+      if (user == null || user.profileId.isEmpty) {
+        setState(() {
+          error = 'No se pudo obtener información del usuario';
+          isLoading = false;
+        });
+        return;
+      }
+
+      final response = await HouseholdService.getHouseholdMembersByProfile(user.profileId);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> membersJson = response.data;
+        final List<HouseholdMember> loadedMembers = membersJson
+            .map((json) => HouseholdMember.fromJson(json))
+            .toList();
+
+        setState(() {
+          _allMembers = loadedMembers;
+          _filteredMembers = loadedMembers;
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          error = 'Error al cargar miembros del hogar';
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        error = 'Error de conexión: $e';
+        isLoading = false;
+      });
+    }
   }
 
   void _filterMembers() {
@@ -91,60 +121,119 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
                     ),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    // Barra de búsqueda y filtro
-                    SearchFilterBar(
-                      onSearch: (query) {
-                        _searchQuery = query;
-                        _filterMembers();
-                      },
-                      onToggleEmergencyOnly: (value) {
-                        _showEmergencyOnly = value;
-                        _filterMembers();
-                      },
-                    ),
+                child: isLoading
+                    ? _buildLoadingState()
+                    : error != null
+                      ? _buildErrorState()
+                      : Column(
+                          children: [
+                            // Barra de búsqueda y filtro
+                            SearchFilterBar(
+                              onSearch: (query) {
+                                _searchQuery = query;
+                                _filterMembers();
+                              },
+                              onToggleEmergencyOnly: (value) {
+                                _showEmergencyOnly = value;
+                                _filterMembers();
+                              },
+                            ),
 
-                    // Pestañas (All Members / Emergency Contacts)
-                    TabBar(
-                      controller: _tabController,
-                      indicatorColor: const Color(0xFF4ECDC4),
-                      indicatorWeight: 3,
-                      labelColor: const Color(0xFF4ECDC4),
-                      unselectedLabelColor: Colors.grey,
-                      tabs: const [
-                        Tab(text: "All Members"),
-                        Tab(text: "Emergency Contacts"),
-                      ],
-                    ),
+                            // Pestañas (All Members / Emergency Contacts)
+                            TabBar(
+                              controller: _tabController,
+                              indicatorColor: const Color(0xFF4ECDC4),
+                              indicatorWeight: 3,
+                              labelColor: const Color(0xFF4ECDC4),
+                              unselectedLabelColor: Colors.grey,
+                              tabs: const [
+                                Tab(text: "All Members"),
+                                Tab(text: "Emergency Contacts"),
+                              ],
+                            ),
 
-                    // Contenido principal
-                    Expanded(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          // Tab 1: All Members
-                          _buildMembersList(_filteredMembers),
+                            // Contenido principal
+                            Expanded(
+                              child: TabBarView(
+                                controller: _tabController,
+                                children: [
+                                  // Tab 1: All Members
+                                  _buildMembersList(_filteredMembers),
 
-                          // Tab 2: Emergency Contacts
-                          _buildMembersList(_filteredMembers.where((m) => m.isEmergencyContact).toList()),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                                  // Tab 2: Emergency Contacts
+                                  _buildMembersList(_filteredMembers.where((m) => m.isEmergencyContact).toList()),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
               ),
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddMemberDialog,
-        backgroundColor: const Color(0xFF4ECDC4),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.person_add),
-        label: const Text('Add Member'),
-        elevation: 4,
+      floatingActionButton: isLoading
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _showAddMemberDialog,
+              backgroundColor: const Color(0xFF4ECDC4),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.person_add),
+              label: const Text('Add Member'),
+              elevation: 4,
+            ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            color: Color(0xFF4ECDC4),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Cargando miembros del hogar...',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 80,
+            color: Colors.red.withOpacity(0.7),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            error ?? 'Error desconocido',
+            style: TextStyle(
+              color: Colors.red.withOpacity(0.7),
+              fontSize: 18,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _loadHouseholdMembers,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4ECDC4),
+            ),
+            child: const Text('Reintentar'),
+          ),
+        ],
       ),
     );
   }
@@ -190,7 +279,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
           ),
           const SizedBox(height: 16),
           const Text(
-            'No registered household members yet',
+            'No hay miembros registrados aún',
             style: TextStyle(
               fontSize: 16,
               color: Colors.white,
@@ -199,7 +288,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
           ),
           const SizedBox(height: 8),
           const Text(
-            'Tap the "Add Member" button to register a new member',
+            'Toca el botón "Add Member" para registrar un nuevo miembro',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white70,
@@ -210,6 +299,149 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
     );
   }
 
+  // Mostrar diálogo para añadir miembro
+  void _showAddMemberDialog() async {
+    final user = await StorageHelper.getUser();
+    if (user == null) {
+      _showErrorSnackBar('No se pudo obtener información del usuario');
+      return;
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AddEditMemberDialog(
+        title: 'Añadir Miembro',
+        onSave: (member) async {
+          try {
+            final response = await HouseholdService.createHouseholdMember(
+              profileId: user.profileId,
+              name: member.fullName,
+              email: member.email,
+              phone: member.phoneNumber,
+              emergencyContact: member.isEmergencyContact,
+              gasAlerts: member.gasLeakAlerts,
+            );
+
+            if (response.statusCode == 200 || response.statusCode == 201) {
+              Navigator.pop(context);
+              _showSuccessSnackBar('Miembro añadido exitosamente');
+              _loadHouseholdMembers(); // Recargar la lista
+            } else {
+              throw Exception('Error al crear miembro');
+            }
+          } catch (e) {
+            _showErrorSnackBar('Error al añadir miembro: $e');
+          }
+        },
+      ),
+    );
+  }
+
+  // Mostrar diálogo para editar miembro
+  void _showEditMemberDialog(HouseholdMember member) {
+    showDialog(
+      context: context,
+      builder: (context) => AddEditMemberDialog(
+        title: 'Editar Miembro',
+        member: member,
+        onSave: (updatedMember) async {
+          try {
+            final response = await HouseholdService.updateHouseholdMember(
+              member.id,
+              name: updatedMember.fullName,
+              email: updatedMember.email,
+              phone: updatedMember.phoneNumber,
+              emergencyContact: updatedMember.isEmergencyContact,
+              gasAlerts: updatedMember.gasLeakAlerts,
+            );
+
+            if (response.statusCode == 200) {
+              Navigator.pop(context);
+              _showSuccessSnackBar('Miembro actualizado exitosamente');
+              _loadHouseholdMembers(); // Recargar la lista
+            } else {
+              throw Exception('Error al actualizar miembro');
+            }
+          } catch (e) {
+            _showErrorSnackBar('Error al actualizar miembro: $e');
+          }
+        },
+      ),
+    );
+  }
+
+  // Confirmar eliminación de miembro
+  void _showDeleteConfirmation(HouseholdMember member) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2B3D),
+        title: const Text(
+          'Eliminar Miembro',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          '¿Estás seguro de que quieres eliminar a ${member.fullName} de los miembros del hogar?',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                final response = await HouseholdService.deleteHouseholdMember(member.id);
+
+                if (response.statusCode == 200) {
+                  Navigator.pop(context);
+                  _showSuccessSnackBar('Miembro eliminado exitosamente');
+                  _loadHouseholdMembers(); // Recargar la lista
+                } else {
+                  throw Exception('Error al eliminar miembro');
+                }
+              } catch (e) {
+                Navigator.pop(context);
+                _showErrorSnackBar('Error al eliminar miembro: $e');
+              }
+            },
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF4ECDC4),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  // ...resto del código para _buildNotificationSettings() y _buildNotificationItem() igual...
   Widget _buildNotificationSettings() {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -253,7 +485,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
               const SizedBox(width: 14),
               const Expanded(
                 child: Text(
-                  'Gas Leak Alerts',
+                  'Alertas de Fuga de Gas',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -265,7 +497,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
           ),
           const SizedBox(height: 20),
           const Text(
-            'Safety measures during a gas leak:',
+            'Medidas de seguridad durante una fuga de gas:',
             style: TextStyle(
               color: Color(0xFF4ECDC4),
               fontSize: 16,
@@ -274,7 +506,7 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
           ),
           const SizedBox(height: 6),
           const Text(
-            'When GasGuard detects a gas leak, the following actions are taken automatically:',
+            'Cuando GasGuard detecta una fuga de gas, se toman las siguientes acciones automáticamente:',
             style: TextStyle(
               color: Colors.white70,
               fontSize: 14,
@@ -282,19 +514,19 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
           ),
           const SizedBox(height: 16),
           _buildNotificationItem(
-            title: 'Emergency contacts receive immediate SMS and email alerts',
+            title: 'Los contactos de emergencia reciben alertas inmediatas por SMS y email',
           ),
           const SizedBox(height: 10),
           _buildNotificationItem(
-            title: 'Emergency services as firefighters and 911 are notified',
+            title: 'Se notifica a servicios de emergencia como bomberos y 911',
           ),
           const SizedBox(height: 10),
           _buildNotificationItem(
-            title: 'Opening of doors or windows for ventilation',
+            title: 'Apertura de puertas y ventanas para ventilación',
           ),
           const SizedBox(height: 10),
           _buildNotificationItem(
-            title: 'Power supply shutoff for high levels of gas',
+            title: 'Corte del suministro eléctrico para niveles altos de gas',
           ),
         ],
       ),
@@ -331,102 +563,6 @@ class _HouseholdMembersScreenState extends State<HouseholdMembersScreen> with Si
           ),
         ),
       ],
-    );
-  }
-
-  void _showAddMemberDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AddEditMemberDialog(
-        title: 'Add Member',
-        onSave: (member) {
-          setState(() {
-            _allMembers.add(HouseholdMember(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
-              fullName: member.fullName,
-              email: member.email,
-              phoneNumber: member.phoneNumber,
-              isEmergencyContact: member.isEmergencyContact,
-              gasLeakAlerts: member.gasLeakAlerts,
-              notificationsEnabled: member.notificationsEnabled,
-            ));
-            _filterMembers();
-          });
-          Navigator.pop(context);
-          _showSuccessSnackBar('Member added successfully');
-        },
-      ),
-    );
-  }
-
-  void _showEditMemberDialog(HouseholdMember member) {
-    showDialog(
-      context: context,
-      builder: (context) => AddEditMemberDialog(
-        title: 'Edit Member',
-        member: member,
-        onSave: (updatedMember) {
-          setState(() {
-            final index = _allMembers.indexWhere((m) => m.id == member.id);
-            if (index != -1) {
-              _allMembers[index] = updatedMember;
-            }
-            _filterMembers();
-          });
-          Navigator.pop(context);
-          _showSuccessSnackBar('Member updated successfully');
-        },
-      ),
-    );
-  }
-
-  void _showDeleteConfirmation(HouseholdMember member) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A2B3D),
-        title: const Text(
-          'Delete Member',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          'Are you sure you want to remove ${member.fullName} from household members?',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _allMembers.removeWhere((m) => m.id == member.id);
-                _filterMembers();
-              });
-              Navigator.pop(context);
-              _showSuccessSnackBar('Member removed successfully');
-            },
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: const Color(0xFF4ECDC4),
-        behavior: SnackBarBehavior.floating,
-      ),
     );
   }
 }

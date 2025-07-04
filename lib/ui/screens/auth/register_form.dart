@@ -1,8 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:gasguard_mobile/models/user.dart';
 import 'package:gasguard_mobile/ui/common/input_field.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:gasguard_mobile/service/auth_service.dart';
 import '../../../utils/app_router.dart';
 
 class RegisterForm extends StatefulWidget {
@@ -17,6 +15,7 @@ class _RegisterFormState extends State<RegisterForm> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -79,9 +78,7 @@ class _RegisterFormState extends State<RegisterForm> {
       width: double.infinity,
       height: 50,
       child: ElevatedButton(
-        onPressed: () {
-          _handleRegister();
-        },
+        onPressed: _isLoading ? null : _handleRegister,
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF4ECDC4),
           foregroundColor: Colors.white,
@@ -89,20 +86,29 @@ class _RegisterFormState extends State<RegisterForm> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(25),
           ),
+          disabledBackgroundColor: Colors.grey,
         ),
-        child: const Text(
-          'Create account',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+        child: _isLoading
+          ? const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                color: Colors.white,
+                strokeWidth: 2,
+              ),
+            )
+          : const Text(
+              'Create account',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
       ),
     );
   }
 
-  void _handleRegister() {
-
+  void _handleRegister() async {
     String name = _nameController.text.trim();
     String email = _emailController.text.trim();
     String password = _passwordController.text.trim();
@@ -112,44 +118,34 @@ class _RegisterFormState extends State<RegisterForm> {
       return;
     }
 
-    _showSnackBar('Creando cuenta...');
-
-    // Crear objeto User
-    final newUser = User(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name,
-      email: email,
-      deviceIds: [], // Usuario nuevo sin dispositivos
-    );
-
-    // Guardar el usuario simuldo
-    _saveUser(newUser, password).then((_) {
-      // Una vez guardado, navegar al dashboard
-      Future.delayed(const Duration(seconds: 1), () {
-        Navigator.pushReplacementNamed(
-          context, 
-          AppRouter.dashboard,
-          arguments: {'user': newUser},
-        );
-      });
-    }).catchError((error) {
-      _showSnackBar('Error al crear cuenta: $error');
+    setState(() {
+      _isLoading = true;
     });
-  }
 
-  // Método para guardar usuario en SharedPreferences)
-  Future<void> _saveUser(User user, String password) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      await prefs.setString('user_data', json.encode(user.toJson()));
-      
-      await prefs.setString('user_password', password);
-      
-      await prefs.setBool('is_logged_in', true);
+      final response = await AuthService.signUp(email, password);
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        _showSnackBar('¡Cuenta creada exitosamente! Ahora puedes iniciar sesión');
+        
+        _nameController.clear();
+        _emailController.clear();
+        _passwordController.clear();
+
+        Navigator.pushReplacementNamed(context, AppRouter.auth);
+
+                
+      } else {
+        final data = response.data;
+        _showSnackBar(data['message'] ?? 'Error al crear cuenta');
+      }
     } catch (e) {
-      print('Error al guardar usuario: $e');
-      throw Exception('No se pudo guardar la cuenta');
+      print('Error de registro: $e');
+      _showSnackBar('Error de conexión: $e');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 

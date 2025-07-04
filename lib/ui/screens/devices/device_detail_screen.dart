@@ -5,6 +5,8 @@ import 'package:gasguard_mobile/models/system_status.dart';
 import 'package:gasguard_mobile/ui/common/app_header.dart';
 import 'dart:math' as math;
 
+import '../../../service/device_service.dart';
+import '../../../shared/helpers/storage_helper.dart';
 import '../../../utils/top_menu.dart';
 import 'components/device_chart.dart';
 import 'components/device_status.dart';
@@ -14,9 +16,9 @@ class DeviceDetailScreen extends StatefulWidget {
   final Device? device;
 
   const DeviceDetailScreen({
-    Key? key,
+    super.key,
     this.device,
-  }) : super(key: key);
+  });
 
   @override
   State<DeviceDetailScreen> createState() => _DeviceDetailScreenState();
@@ -27,6 +29,7 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
   late bool isNewDevice;
   late TextEditingController nameController;
   late TextEditingController locationController;
+  late TextEditingController deviceIdController;
 
   @override
   void initState() {
@@ -36,18 +39,18 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     if (isNewDevice) {
       // Crear un nuevo dispositivo con datos por defecto
       final now = DateTime.now();
-      final deviceId = 'GSD${now.millisecondsSinceEpoch.toString().substring(6)}';
+      final deviceId = 'device${now.millisecondsSinceEpoch.toString().substring(8)}';
       
       device = Device(
-        id: deviceId,
+        id: '',
+        deviceId: deviceId,
         name: 'Nuevo Sensor',
         isOnline: true,
         lastSeen: now,
         location: 'Sin ubicación',
-        lastReading: GasReading(
-          value: 10.0,
-          timestamp: now,
-        ),
+        status: 'OFFLINE',
+        profileId: '',
+        lastReading: GasReading(value: 10.0, timestamp: now),
         systemStatus: SystemStatus(),
         readings: _generateInitialReadings(now),
       );
@@ -57,6 +60,7 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     
     nameController = TextEditingController(text: device.name);
     locationController = TextEditingController(text: device.location);
+    deviceIdController = TextEditingController(text: device.deviceId); // 👈 Nuevo
   }
   
   List<GasReading> _generateInitialReadings(DateTime now) {
@@ -80,6 +84,7 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
   void dispose() {
     nameController.dispose();
     locationController.dispose();
+    deviceIdController.dispose();
     super.dispose();
   }
 
@@ -205,37 +210,62 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF0F1B2A),
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: const Color(0xFF2A3B4D),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFF2A3B4D), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Id del dispositivo
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.qr_code, color: Color(0xFF4ECDC4), size: 16),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'ID del dispositivo:',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                ],
-              ),
-              Text(
-                device.id,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+          // ID interno del dispositivo (solo mostrar)
+          if (!isNewDevice) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.tag, color: Color(0xFF4ECDC4), size: 16),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'ID interno:',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                  ],
                 ),
+                Text(
+                  '#${device.id}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          
+          // ID del sensor físico (editable)
+          const Text(
+            'ID del sensor (debe coincidir con Arduino/Wokwi)',
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: deviceIdController,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFF162635),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none,
               ),
-            ],
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              hintText: 'ej: device2, sensor_cocina',
+              hintStyle: const TextStyle(color: Colors.white38),
+            ),
+            onChanged: (value) {
+              device.deviceId = value;
+            },
           ),
           
           const SizedBox(height: 16),
@@ -257,9 +287,9 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
                 borderSide: BorderSide.none,
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              hintText: 'ej: Sensor Cocina',
+              hintStyle: const TextStyle(color: Colors.white38),
             ),
-            onChanged: (value) {
-            },
           ),
           
           const SizedBox(height: 16),
@@ -281,9 +311,9 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
                 borderSide: BorderSide.none,
               ),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              hintText: 'ej: Cocina, Sala, Garaje',
+              hintStyle: const TextStyle(color: Colors.white38),
             ),
-            onChanged: (value) {
-            },
           ),
           
           // Si no es nuevo, mostrar estado de conexión
@@ -376,29 +406,86 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
     });
   }
 
-  void _saveDevice() {
-    // Aquí actualizar dispositivo con los nuevos valores
-    device.name = nameController.text;
-    device.location = locationController.text;
+  void _saveDevice() async {
+    // Validar que todos los campos estén completos
+    if (nameController.text.trim().isEmpty || 
+        locationController.text.trim().isEmpty ||
+        deviceIdController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor completa todos los campos'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isNewDevice ? 
-          'Dispositivo añadido correctamente' : 
-          'Dispositivo actualizado correctamente'),
-        backgroundColor: const Color(0xFF4ECDC4),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-    
-    // Volver a la pantalla anterior
-    Navigator.pop(context, device);
+    try {
+      final user = await StorageHelper.getUser();
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo obtener información del usuario'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      if (isNewDevice) {
+        // Crear nuevo dispositivo
+        final response = await DeviceService.createDevice(
+          deviceId: deviceIdController.text.trim(), // 👈 Usar el valor del input
+          name: nameController.text.trim(),
+          location: locationController.text.trim(),
+          profileId: user.profileId,
+        );
+
+        if (response.statusCode == 201 || response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Dispositivo creado correctamente'),
+              backgroundColor: Color(0xFF4ECDC4),
+            ),
+          );
+          Navigator.pop(context, 'created');
+        } else {
+          throw Exception('Error al crear dispositivo');
+        }
+      } else {
+        // Actualizar dispositivo existente
+        final response = await DeviceService.updateDevice(device.id, {
+          'deviceId': deviceIdController.text.trim(), // 👈 También actualizar el deviceId
+          'name': nameController.text.trim(),
+          'location': locationController.text.trim(),
+        });
+
+        if (response.statusCode == 200) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Dispositivo actualizado correctamente'),
+              backgroundColor: Color(0xFF4ECDC4),
+            ),
+          );
+          Navigator.pop(context, 'updated');
+        } else {
+          throw Exception('Error al actualizar dispositivo');
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _confirmDeleteDevice() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF1A2B3D),
         title: const Text(
           'Eliminar dispositivo',
@@ -410,26 +497,36 @@ class _DeviceDetailScreenState extends State<DeviceDetailScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text(
-              'Cancelar', 
+              'Cancelar',
               style: TextStyle(color: Colors.white70),
             ),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              
+            onPressed: () async {
+              Navigator.pop(dialogContext); 
 
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Dispositivo eliminado correctamente'),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-              
-              Navigator.pop(context, 'deleted');
+              try {
+                final response = await DeviceService.deleteDevice(device.id);
+
+                if (response.statusCode == 200) {
+                  if (mounted) {
+                    Navigator.pop(context, {'action': 'deleted', 'deviceName': device.name});
+                  }
+                } else {
+                  throw Exception('Error al eliminar dispositivo');
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,

@@ -1,29 +1,35 @@
 class User {
   final String id;
   final String email;
-  final String name;
-  final List<String> deviceIds; // IDs de dispositivos vinculados
-  
-  const User({
+  final String? name;
+  final String? phoneNumber;
+  final String profileId;
+  final List<String> deviceIds;
+
+  User({
     required this.id,
     required this.email,
-    required this.name,
+    this.name,
+    this.phoneNumber,
+    required this.profileId,
     this.deviceIds = const [],
   });
-  
-  // Conversión a JSON
+
+  factory User.fromJson(Map<String, dynamic> json) => User(
+    id: json['id']?.toString() ?? '',
+    email: json['email'] ?? '',
+    name: json['name'],
+    phoneNumber: json['phoneNumber'],
+    profileId: json['profileId']?.toString() ?? '',
+    deviceIds: List<String>.from(json['deviceIds'] ?? []),
+  );
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'email': email,
     'name': name,
+    'phoneNumber': phoneNumber,
+    'profileId': profileId, // <-- SOLO camelCase
     'deviceIds': deviceIds,
   };
-  
-  // Constructor desde JSON
-  factory User.fromJson(Map<String, dynamic> json) => User(
-    id: json['id'],
-    email: json['email'],
-    name: json['name'],
-    deviceIds: List<String>.from(json['deviceIds'] ?? []),
-  );
 }
