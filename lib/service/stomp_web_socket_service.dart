@@ -109,10 +109,12 @@ class StompWebSocketService {
     }
 
     try {
+      // Formato adaptado para el ESP32 que usa MQTT
       final lightingData = {
-        'deviceId': deviceId,
+        'auto': auto ? 1 : 0,  // ESP32 espera 0 o 1
         'value': value,
-        'automatic': auto, // 🔥 CAMBIAR: usar 'automatic' como React
+        // También enviamos deviceId aunque el ESP no lo use explícitamente
+        'deviceId': deviceId,
       };
 
       print('💡 Enviando comando de luz por STOMP: $lightingData');
