@@ -135,9 +135,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted) return;
 
     setState(() {
-      // 🔥 USAR 'value' que viene en el JSON, no 'ppm'
-      final double gasValue = (data['value'] as num?)?.toDouble() ??
+      // 🔥 LIMITAR EL VALOR DEL GAS ENTRE 0 Y 100
+      double rawGasValue = (data['value'] as num?)?.toDouble() ??
           (data['ppm'] as num?)?.toDouble() ?? 0.0;
+      
+      final double gasValue = rawGasValue.clamp(0.0, 100.0);
       final String status = data['status'] ?? 'NORMAL';
       final String deviceId = data['deviceId'] ?? '';
       final bool isEmergency = status == 'ALERT';

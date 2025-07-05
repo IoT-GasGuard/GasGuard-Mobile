@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class GasLevelChartPainter extends CustomPainter {
@@ -55,7 +54,10 @@ class GasLevelChartPainter extends CustomPainter {
     // Dibujar los puntos y conectarlos
     for (int i = 1; i < data.length; i++) {
       final double x = i * xStep;
-      final double y = size.height - (data[i] / 100) * size.height;
+      
+      // 🔥 LIMITAR EL VALOR ENTRE 0 Y 100
+      final double clampedValue = data[i].clamp(0.0, 100.0);
+      final double y = size.height - (clampedValue / 100) * size.height;
 
       // Suavizar la curva
       if (i > 1) {
@@ -88,8 +90,10 @@ class GasLevelChartPainter extends CustomPainter {
       ..color = isEmergency ? Colors.red : const Color(0xFF4ECDC4)
       ..style = PaintingStyle.fill;
 
+    // 🔥 TAMBIÉN LIMITAR EL ÚLTIMO PUNTO
     final double lastX = (data.length - 1) * xStep;
-    final double lastY = size.height - (data.last / 100) * size.height;
+    final double clampedLastValue = data.last.clamp(0.0, 100.0);
+    final double lastY = size.height - (clampedLastValue / 100) * size.height;
     canvas.drawCircle(Offset(lastX, lastY), 5, dotPaint);
   }
 
