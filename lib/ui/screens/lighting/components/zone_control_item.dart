@@ -4,12 +4,14 @@ class ZoneControlItem extends StatelessWidget {
   final String zoneName;
   final double intensity;
   final ValueChanged<double>? onIntensityChanged;
+  final ValueChanged<double>? onIntensityChangeEnd;
 
   const ZoneControlItem({
     Key? key,
     required this.zoneName,
     required this.intensity,
-    this.onIntensityChanged, void Function(dynamic value)? onIntensityChangeEnd,
+    this.onIntensityChanged,
+    this.onIntensityChangeEnd,
   }) : super(key: key);
 
   @override
@@ -70,6 +72,7 @@ class ZoneControlItem extends StatelessWidget {
               min: 0,
               max: 100,
               onChanged: onIntensityChanged,
+              onChangeEnd: onIntensityChangeEnd,
             ),
           ),
         ],

@@ -283,9 +283,9 @@ class _LightingScreenState extends State<LightingScreen> {
               onIntensityChanged: _isAutomaticMode
                   ? null
                   : (value) => _handleZoneIntensityChanged(index, value),
-              onIntensityChangeEnd: _isAutomaticMode
+              onIntensityChangeEnd: _isAutomaticMode 
                   ? null
-                  : (value) => _handleZoneIntensityChangeEnd(index, value), // AGREGAR ESTA LÍNEA
+                  : (value) => _handleZoneIntensityChangeEnd(index, value),
             ),
           ),
         ),
