@@ -6,18 +6,48 @@ import 'package:gasguard_mobile/config/environment.dart';
 import 'dart:async';
 
 class StompWebSocketService {
+  // 🔥 SINGLETON PATTERN
+  static final StompWebSocketService _instance = StompWebSocketService._internal();
+  factory StompWebSocketService() => _instance;
+  StompWebSocketService._internal();
+
   StompClient? _stompClient;
   Function(Map<String, dynamic>)? onDataReceived;
   bool _isConnected = false;
   String? _deviceId;
   Timer? _reconnectTimer;
-  Timer? _debounceTimer; // Timer para debounce
+  Timer? _debounceTimer;
+  
+  // 🔥 CACHE DE ÚLTIMOS DATOS RECIBIDOS
+  Map<String, Map<String, dynamic>> _lastDataCache = {};
   
   bool get isConnected => _isConnected;
+  String? get currentDeviceId => _deviceId;
+
+  // 🔥 MÉTODO PARA OBTENER ÚLTIMO DATO CACHEADO
+  Map<String, dynamic>? getLastData(String deviceId) {
+    return _lastDataCache[deviceId];
+  }
 
   Future<void> connect(String deviceId) async {
+    // Si ya está conectado al mismo dispositivo, no reconectar
+    if (_isConnected && _deviceId == deviceId) {
+      print('🔄 Ya conectado a $deviceId, enviando datos cacheados...');
+      _sendCachedData(deviceId);
+      return;
+    }
+    
     _deviceId = deviceId;
     await _connectWithRetry();
+  }
+
+  // 🔥 ENVIAR DATOS CACHEADOS INMEDIATAMENTE
+  void _sendCachedData(String deviceId) {
+    final cachedData = _lastDataCache[deviceId];
+    if (cachedData != null && onDataReceived != null) {
+      print('📤 Enviando datos cacheados para $deviceId: $cachedData');
+      onDataReceived!(cachedData);
+    }
   }
   
   Future<void> _connectWithRetry() async {
@@ -27,6 +57,11 @@ class StompWebSocketService {
           : 'ws://10.0.2.2:8080/ws/monitoring';
       
       print('🔌 Conectando STOMP WebSocket a: $wsUrl para deviceId: $_deviceId');
+      
+      // Desconectar cliente anterior si existe
+      if (_stompClient != null) {
+        _stompClient!.deactivate();
+      }
       
       _stompClient = StompClient(
         config: StompConfig(
@@ -64,6 +99,11 @@ class StompWebSocketService {
     );
     
     print('✅ Suscrito al tópico dinámico: $topicPath');
+    
+    // 🔥 ENVIAR DATOS CACHEADOS INMEDIATAMENTE DESPUÉS DE CONECTAR
+    if (_deviceId != null) {
+      _sendCachedData(_deviceId!);
+    }
   }
 
   void _onMessage(StompFrame frame) {
@@ -91,6 +131,11 @@ class StompWebSocketService {
         };
 
         print('🔄 Datos procesados finales: $processedData');
+        
+        // 🔥 GUARDAR EN CACHE
+        _lastDataCache[messageDeviceId] = processedData;
+        
+        // Enviar a callback si existe
         onDataReceived?.call(processedData);
       }
     } catch (e) {
@@ -98,63 +143,7 @@ class StompWebSocketService {
     }
   }
 
-  // 🔥 MÉTODO NUEVO: Enviar comando de iluminación por STOMP
-  Future<bool> sendLightingCommand({
-    required String deviceId,
-    required int value,
-    required bool auto,
-    bool debounce = true, // Parámetro nuevo para activar/desactivar debounce
-  }) async {
-    if (!_isConnected || _stompClient == null) {
-      print('❌ STOMP no conectado, no se puede enviar comando');
-      return false;
-    }
-
-    try {
-      // Cancelar timer anterior si existe
-      if (debounce) {
-        _debounceTimer?.cancel();
-        
-        // Programar envío después de un breve retraso
-        _debounceTimer = Timer(Duration(milliseconds: 250), () {
-          _sendActualCommand(deviceId, value, auto);
-        });
-        return true; // Devolvemos true aunque realmente se enviará después
-      } else {
-        // Enviar inmediatamente (sin debounce)
-        return _sendActualCommand(deviceId, value, auto);
-      }
-    } catch (e) {
-      print('❌ Error enviando comando de iluminación: $e');
-      return false;
-    }
-  }
-  
-  // Método privado que realiza el envío real
-  bool _sendActualCommand(String deviceId, int value, bool auto) {
-    try {
-      // Formato adaptado para el ESP32 que usa MQTT
-      final lightingData = {
-        'auto': auto ? 1 : 0,  // ESP32 espera 0 o 1
-        'value': value,
-        'deviceId': deviceId,
-      };
-
-      print('💡 Enviando comando de luz por STOMP: $lightingData');
-
-      _stompClient!.send(
-        destination: '/app/lighting',
-        body: jsonEncode(lightingData),
-      );
-
-      print('✅ Comando de iluminación enviado exitosamente');
-      return true;
-    } catch (e) {
-      print('❌ Error enviando comando real: $e');
-      return false;
-    }
-  }
-  
+  // 🔥 AGREGAR TODOS LOS MÉTODOS CALLBACK FALTANTES
   void _onWebSocketError(dynamic error) {
     print('❌ WebSocket error para $_deviceId: $error');
     _isConnected = false;
@@ -176,6 +165,7 @@ class StompWebSocketService {
   void _onDisconnect(StompFrame frame) {
     print('🔌 STOMP desconectado para $_deviceId');
     _isConnected = false;
+    _scheduleReconnect();
   }
   
   void _scheduleReconnect() {
@@ -188,13 +178,61 @@ class StompWebSocketService {
     });
   }
 
+  // 🔥 MÉTODO MODIFICADO - NO DESCONECTAR COMPLETAMENTE
   void disconnect() {
-    _reconnectTimer?.cancel();
-    if (_stompClient != null) {
-      print('🛑 Desconectando STOMP para $_deviceId');
-      _stompClient!.deactivate();
-      _stompClient = null;
+    print('🔌 Pausando conexión STOMP (manteniendo cache)');
+    onDataReceived = null; // Solo remover callback
+    // NO desactivar el cliente para mantener la conexión
+  }
+
+  // Métodos para lighting commands...
+  Future<bool> sendLightingCommand({
+    required String deviceId,
+    required int value,
+    required bool auto,
+    bool debounce = true,
+  }) async {
+    if (!_isConnected || _stompClient == null) {
+      print('❌ STOMP no conectado, no se puede enviar comando');
+      return false;
     }
-    _isConnected = false;
+
+    try {
+      if (debounce) {
+        _debounceTimer?.cancel();
+        _debounceTimer = Timer(Duration(milliseconds: 250), () {
+          _sendActualCommand(deviceId, value, auto);
+        });
+        return true;
+      } else {
+        return _sendActualCommand(deviceId, value, auto);
+      }
+    } catch (e) {
+      print('❌ Error enviando comando de iluminación: $e');
+      return false;
+    }
+  }
+  
+  bool _sendActualCommand(String deviceId, int value, bool auto) {
+    try {
+      final lightingData = {
+        'auto': auto ? 1 : 0,
+        'value': value,
+        'deviceId': deviceId,
+      };
+
+      print('💡 Enviando comando de luz por STOMP: $lightingData');
+
+      _stompClient!.send(
+        destination: '/app/lighting',
+        body: jsonEncode(lightingData),
+      );
+
+      print('✅ Comando de iluminación enviado exitosamente');
+      return true;
+    } catch (e) {
+      print('❌ Error enviando comando real: $e');
+      return false;
+    }
   }
 }

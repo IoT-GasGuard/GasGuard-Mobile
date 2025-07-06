@@ -19,37 +19,58 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingObserver {
   Device? selectedDevice;
   List<Device> devices = [];
   bool isLoading = true;
   bool isEmergencyMode = false;
   String? error;
 
-  // Cambiar a STOMP service
+  // 🔥 USAR SINGLETON
   final StompWebSocketService _webSocketService = StompWebSocketService();
-
-  // 🔥 AGREGAR VARIABLE PARA CONTROLAR SI YA SE MOSTRÓ LA ALERTA
   bool _alertDialogShown = false;
+  
+  bool _isFirstLoad = true;
+  Map<String, Device> _deviceStates = {};
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadDevices();
-
-    // Configurar WebSocket para recibir datos del sensor
+    
+    // 🔥 CONFIGURAR CALLBACK DEL SINGLETON
     _webSocketService.onDataReceived = _handleWebSocketData;
   }
 
-  // Cargar dispositivos desde el backend
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    // 🔥 NO DESCONECTAR COMPLETAMENTE - SOLO PAUSAR
+    _webSocketService.disconnect();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (selectedDevice != null) {
+        print('🔄 App volvió al foreground - reconectando WebSocket');
+        _connectWebSocket();
+      }
+    }
+  }
+
+  // 🔥 MÉTODO MEJORADO PARA PRESERVAR ESTADO
   Future<void> _loadDevices() async {
     setState(() {
-      isLoading = true;
+      if (_isFirstLoad) {
+        isLoading = true;
+      }
       error = null;
     });
 
     try {
-      // Depuración: imprime el usuario guardado
       final user = await StorageHelper.getUser();
       print('👤 Usuario obtenido de StorageHelper: ${user?.toJson()}');
       
@@ -62,12 +83,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       print('📱 Cargando dispositivos para profileId: ${user.profileId}');
-
-      // 🔥 CAMBIO IMPORTANTE: Usar profileId en lugar de deviceIds
       final response = await DeviceService.getDevicesByProfile(user.profileId);
-
-      print('📱 Respuesta del API: ${response.statusCode}');
-      print('📱 Datos recibidos: ${response.data}');
 
       if (response.statusCode == 200) {
         final List<dynamic> devicesJson = response.data;
@@ -76,9 +92,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             .toList();
 
         print('📱 Dispositivos cargados: ${loadedDevices.length}');
-        for (var device in loadedDevices) {
-          print('📱 - ${device.name} (${device.deviceId}) en ${device.location}');
-        }
 
         if (loadedDevices.isEmpty) {
           setState(() {
@@ -89,25 +102,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return;
         }
 
-        // Inicializar datos para cada dispositivo
+        // 🔥 PRESERVAR DATOS EXISTENTES O INICIALIZAR
         for (var device in loadedDevices) {
-          final now = DateTime.now();
-          device.readings = _generateSampleReadings(now, 5, false);
-          device.lastReading ??= GasReading(
-            value: 0.0,
-            timestamp: now,
-          );
+          final existingDevice = _deviceStates[device.deviceId];
+          
+          if (existingDevice != null) {
+            // Preservar datos existentes
+            device.readings = existingDevice.readings;
+            device.lastReading = existingDevice.lastReading;
+            device.status = existingDevice.status;
+            device.systemStatus = existingDevice.systemStatus;
+            print('📋 Preservando datos existentes para ${device.deviceId}');
+          } else {
+            // 🔥 INTENTAR OBTENER DATOS DESDE CACHE DEL WEBSOCKET
+            final cachedData = _webSocketService.getLastData(device.deviceId);
+            if (cachedData != null) {
+              final gasValue = (cachedData['value'] as num?)?.toDouble()?.clamp(0.0, 100.0) ?? 0.0;
+              final status = cachedData['status'] ?? 'NORMAL';
+              
+              device.lastReading = GasReading(
+                value: gasValue,
+                timestamp: DateTime.now(),
+                isEmergency: status == 'ALERT',
+              );
+              device.status = status;
+              
+              // Agregar lectura al historial
+              device.readings = [device.lastReading!];
+              
+              print('💾 Restaurando datos desde cache WebSocket para ${device.deviceId}: ${gasValue}%, Status: $status');
+            } else if (_isFirstLoad) {
+              // Solo inicializar con datos simulados si no hay cache
+              final now = DateTime.now();
+              device.readings = _generateSampleReadings(now, 5, false);
+              device.lastReading ??= GasReading(value: 0.0, timestamp: now);
+              print('🆕 Inicializando datos simulados para ${device.deviceId}');
+            }
+          }
+          
+          _deviceStates[device.deviceId] = device;
         }
 
         setState(() {
           devices = loadedDevices;
-          selectedDevice = devices.isNotEmpty ? devices.first : null;
+          
+          // 🔥 PRESERVAR DISPOSITIVO SELECCIONADO
+          if (selectedDevice != null) {
+            final currentDeviceId = selectedDevice!.deviceId;
+            selectedDevice = devices.firstWhere(
+              (d) => d.deviceId == currentDeviceId,
+              orElse: () => devices.first,
+            );
+            isEmergencyMode = selectedDevice!.status == 'ALERT';
+          } else {
+            selectedDevice = devices.isNotEmpty ? devices.first : null;
+          }
+          
           isLoading = false;
+          _isFirstLoad = false;
         });
 
-        // Conectar WebSocket si hay un dispositivo seleccionado
+        // Conectar WebSocket y restaurar callback
         if (selectedDevice != null) {
-          print('🔌 Conectando WebSocket para: ${selectedDevice!.deviceId}');
+          print('🔌 Reconectando WebSocket para: ${selectedDevice!.deviceId}');
+          _webSocketService.onDataReceived = _handleWebSocketData;
           _connectWebSocket();
         }
       } else {
@@ -125,20 +183,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Conectar al WebSocket para el dispositivo seleccionado
   void _connectWebSocket() {
     if (selectedDevice != null) {
-      _webSocketService.disconnect(); // Desconectar si ya había conexión
+      print('🔌 Conectando WebSocket para: ${selectedDevice!.deviceId}');
       _webSocketService.connect(selectedDevice!.deviceId);
     }
   }
 
-  // Manejar datos recibidos desde el WebSocket
   void _handleWebSocketData(Map<String, dynamic> data) {
     if (!mounted) return;
 
     setState(() {
-      // 🔥 LIMITAR EL VALOR DEL GAS ENTRE 0 Y 100
       double rawGasValue = (data['value'] as num?)?.toDouble() ??
           (data['ppm'] as num?)?.toDouble() ?? 0.0;
       
@@ -147,65 +202,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final String deviceId = data['deviceId'] ?? '';
       final bool isEmergency = status == 'ALERT';
 
-      print('📊 Datos WebSocket: Device=$deviceId, Value=$gasValue, PPM=${data['ppm']}, Status=$status');
+      print('📊 Datos WebSocket: Device=$deviceId, Value=$gasValue, Status=$status');
 
-      // Verificar que el mensaje es del dispositivo seleccionado
       if (selectedDevice != null && deviceId == selectedDevice!.deviceId) {
         print('✅ Actualizando UI para dispositivo correcto: ${selectedDevice!.name}');
 
-        // Crear nueva lectura con los datos recibidos
         final newReading = GasReading(
           value: gasValue,
           timestamp: DateTime.now(),
           isEmergency: isEmergency,
         );
 
-        // Actualizar el dispositivo seleccionado
         selectedDevice!.addReading(newReading);
         selectedDevice!.status = status;
+        _deviceStates[deviceId] = selectedDevice!;
 
         print('🎯 Nueva lectura agregada: ${gasValue}% - Total lecturas: ${selectedDevice!.readings.length}');
 
-        // 🔥 MANEJAR TRANSICIONES DE ESTADO CORRECTAMENTE
+        // Manejo de emergencia
         if (status == 'ALERT' && !isEmergencyMode) {
-          // Activar modo emergencia
           isEmergencyMode = true;
           selectedDevice!.systemStatus.activateEmergencyProtocol();
           
-          // 🔥 SOLO MOSTRAR ALERTA SI NO SE HA MOSTRADO YA
           if (!_alertDialogShown) {
             _alertDialogShown = true;
             _showEmergencyAlert();
           }
           
           print('🔴 Modo emergencia ACTIVADO - Estado: ALERT');
-        } else if (status == 'WARNING' && isEmergencyMode) {
-          // Desactivar modo emergencia cuando baja a WARNING
+        } else if (status != 'ALERT' && isEmergencyMode) {
           isEmergencyMode = false;
           selectedDevice!.systemStatus.restoreNormalOperation();
-          
-          // 🔥 RESETEAR FLAG DE ALERTA
           _alertDialogShown = false;
-          
-          print('🟡 Modo emergencia DESACTIVADO - Estado: WARNING');
-        } else if (status == 'NORMAL' && isEmergencyMode) {
-          // Desactivar modo emergencia cuando vuelve a NORMAL
-          isEmergencyMode = false;
-          selectedDevice!.systemStatus.restoreNormalOperation();
-          
-          // 🔥 RESETEAR FLAG DE ALERTA
-          _alertDialogShown = false;
-          
-          print('🟢 Modo emergencia DESACTIVADO - Estado: NORMAL');
+          print('🟢 Modo emergencia DESACTIVADO - Estado: $status');
         }
-        
-        // También actualizar isEmergencyMode basado en el estado actual
-        // para asegurar consistencia
-        if (status != 'ALERT') {
-          isEmergencyMode = false;
-        }
-      } else {
-        print('⚠️ Mensaje de dispositivo diferente: $deviceId vs ${selectedDevice?.deviceId}');
       }
     });
   }
@@ -255,12 +285,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
     });
-  }
-
-  @override
-  void dispose() {
-    _webSocketService.disconnect();
-    super.dispose();
   }
 
   // Mostrar alerta de emergencia
