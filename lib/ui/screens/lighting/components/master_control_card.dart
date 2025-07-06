@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 class MasterControlCard extends StatelessWidget {
   final bool isAutomaticMode;
-  final ValueChanged<bool> onAutomaticModeChanged;
+  final Function(bool) onAutomaticModeChanged;
   final double masterIntensity;
-  final ValueChanged<double> onMasterIntensityChanged;
+  final Function(double) onMasterIntensityChanged;
+  final Function(double)? onMasterIntensityChangeEnd; // AGREGAR ESTE PARÁMETRO
 
   const MasterControlCard({
     Key? key,
@@ -12,6 +13,7 @@ class MasterControlCard extends StatelessWidget {
     required this.onAutomaticModeChanged,
     required this.masterIntensity,
     required this.onMasterIntensityChanged,
+    this.onMasterIntensityChangeEnd, // AGREGAR ESTE PARÁMETRO
   }) : super(key: key);
 
   @override
@@ -85,7 +87,9 @@ class MasterControlCard extends StatelessWidget {
               value: masterIntensity,
               min: 0,
               max: 100,
+              divisions: 100,
               onChanged: isAutomaticMode ? null : onMasterIntensityChanged,
+              onChangeEnd: isAutomaticMode ? null : onMasterIntensityChangeEnd, // AGREGAR ESTA LÍNEA
             ),
           ),
           Padding(

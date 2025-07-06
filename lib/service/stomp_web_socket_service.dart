@@ -11,6 +11,7 @@ class StompWebSocketService {
   bool _isConnected = false;
   String? _deviceId;
   Timer? _reconnectTimer;
+  Timer? _debounceTimer; // Timer para debounce
   
   bool get isConnected => _isConnected;
 
@@ -102,6 +103,7 @@ class StompWebSocketService {
     required String deviceId,
     required int value,
     required bool auto,
+    bool debounce = true, // Parámetro nuevo para activar/desactivar debounce
   }) async {
     if (!_isConnected || _stompClient == null) {
       print('❌ STOMP no conectado, no se puede enviar comando');
@@ -109,11 +111,32 @@ class StompWebSocketService {
     }
 
     try {
+      // Cancelar timer anterior si existe
+      if (debounce) {
+        _debounceTimer?.cancel();
+        
+        // Programar envío después de un breve retraso
+        _debounceTimer = Timer(Duration(milliseconds: 250), () {
+          _sendActualCommand(deviceId, value, auto);
+        });
+        return true; // Devolvemos true aunque realmente se enviará después
+      } else {
+        // Enviar inmediatamente (sin debounce)
+        return _sendActualCommand(deviceId, value, auto);
+      }
+    } catch (e) {
+      print('❌ Error enviando comando de iluminación: $e');
+      return false;
+    }
+  }
+  
+  // Método privado que realiza el envío real
+  bool _sendActualCommand(String deviceId, int value, bool auto) {
+    try {
       // Formato adaptado para el ESP32 que usa MQTT
       final lightingData = {
         'auto': auto ? 1 : 0,  // ESP32 espera 0 o 1
         'value': value,
-        // También enviamos deviceId aunque el ESP no lo use explícitamente
         'deviceId': deviceId,
       };
 
@@ -127,7 +150,7 @@ class StompWebSocketService {
       print('✅ Comando de iluminación enviado exitosamente');
       return true;
     } catch (e) {
-      print('❌ Error enviando comando de iluminación: $e');
+      print('❌ Error enviando comando real: $e');
       return false;
     }
   }

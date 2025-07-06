@@ -249,6 +249,7 @@ class _LightingScreenState extends State<LightingScreen> {
             onAutomaticModeChanged: _handleAutomaticModeChanged,
             masterIntensity: _masterIntensity,
             onMasterIntensityChanged: _handleMasterIntensityChanged,
+            onMasterIntensityChangeEnd: _handleMasterIntensityChangeEnd, // AGREGAR ESTA LÍNEA
           ),
           const SizedBox(height: 24),
 
@@ -280,8 +281,11 @@ class _LightingScreenState extends State<LightingScreen> {
               zoneName: '${_zones[index].name} (${_zones[index].deviceId})',
               intensity: _zones[index].intensity,
               onIntensityChanged: _isAutomaticMode
-                  ? null // Deshabilitar en modo automático
+                  ? null
                   : (value) => _handleZoneIntensityChanged(index, value),
+              onIntensityChangeEnd: _isAutomaticMode
+                  ? null
+                  : (value) => _handleZoneIntensityChangeEnd(index, value), // AGREGAR ESTA LÍNEA
             ),
           ),
         ),
@@ -314,7 +318,15 @@ class _LightingScreenState extends State<LightingScreen> {
         }
       });
 
-      // 🔥 ENVIAR COMANDO A TODOS LOS DISPOSITIVOS
+      // Solo enviamos el comando al soltar el slider o terminar el gesto
+      // No enviamos mientras se arrastra
+    }
+  }
+
+  // Agregar este método para enviar cuando el usuario termina de mover el slider
+  void _handleMasterIntensityChangeEnd(double value) {
+    if (!_isAutomaticMode) {
+      // Enviar comando a todos los dispositivos cuando el usuario termina de mover el slider
       for (final zone in _zones) {
         _sendLightingCommand(zone.deviceId, value.round(), false);
       }
@@ -329,7 +341,15 @@ class _LightingScreenState extends State<LightingScreen> {
         _masterIntensity = _zones.map((z) => z.intensity).reduce((a, b) => a + b) / _zones.length;
       });
 
-      // 🔥 ENVIAR COMANDO AL DISPOSITIVO ESPECÍFICO
+      // REMOVER ESTA LÍNEA - No enviar comando aquí
+      // _sendLightingCommand(_zones[zoneIndex].deviceId, value.round(), false);
+    }
+  }
+
+  // Lo mismo para los controles de zona individual
+  void _handleZoneIntensityChangeEnd(int zoneIndex, double value) {
+    if (!_isAutomaticMode) {
+      // Enviar comando al dispositivo específico cuando termina el movimiento
       _sendLightingCommand(_zones[zoneIndex].deviceId, value.round(), false);
     }
   }

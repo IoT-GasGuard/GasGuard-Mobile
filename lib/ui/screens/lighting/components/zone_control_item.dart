@@ -9,7 +9,7 @@ class ZoneControlItem extends StatelessWidget {
     Key? key,
     required this.zoneName,
     required this.intensity,
-    this.onIntensityChanged,
+    this.onIntensityChanged, void Function(dynamic value)? onIntensityChangeEnd,
   }) : super(key: key);
 
   @override
