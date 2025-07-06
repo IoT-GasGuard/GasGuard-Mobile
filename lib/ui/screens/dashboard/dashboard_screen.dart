@@ -29,6 +29,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // Cambiar a STOMP service
   final StompWebSocketService _webSocketService = StompWebSocketService();
 
+  // 🔥 AGREGAR VARIABLE PARA CONTROLAR SI YA SE MOSTRÓ LA ALERTA
+  bool _alertDialogShown = false;
+
   @override
   void initState() {
     super.initState();
@@ -152,7 +155,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         // Crear nueva lectura con los datos recibidos
         final newReading = GasReading(
-          value: gasValue, // 🔥 Usar gasValue que ya incluye value y ppm como fallback
+          value: gasValue,
           timestamp: DateTime.now(),
           isEmergency: isEmergency,
         );
@@ -163,15 +166,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         print('🎯 Nueva lectura agregada: ${gasValue}% - Total lecturas: ${selectedDevice!.readings.length}');
 
-        // Activar modo emergencia si es necesario
-        if (isEmergency && !isEmergencyMode) {
+        // 🔥 MANEJAR TRANSICIONES DE ESTADO CORRECTAMENTE
+        if (status == 'ALERT' && !isEmergencyMode) {
+          // Activar modo emergencia
           isEmergencyMode = true;
           selectedDevice!.systemStatus.activateEmergencyProtocol();
-          _showEmergencyAlert();
-        } else if (!isEmergency && isEmergencyMode) {
-          // Opcional: Desactivar modo emergencia automáticamente
-          // isEmergencyMode = false;
-          // selectedDevice!.systemStatus.restoreNormalOperation();
+          
+          // 🔥 SOLO MOSTRAR ALERTA SI NO SE HA MOSTRADO YA
+          if (!_alertDialogShown) {
+            _alertDialogShown = true;
+            _showEmergencyAlert();
+          }
+          
+          print('🔴 Modo emergencia ACTIVADO - Estado: ALERT');
+        } else if (status == 'WARNING' && isEmergencyMode) {
+          // Desactivar modo emergencia cuando baja a WARNING
+          isEmergencyMode = false;
+          selectedDevice!.systemStatus.restoreNormalOperation();
+          
+          // 🔥 RESETEAR FLAG DE ALERTA
+          _alertDialogShown = false;
+          
+          print('🟡 Modo emergencia DESACTIVADO - Estado: WARNING');
+        } else if (status == 'NORMAL' && isEmergencyMode) {
+          // Desactivar modo emergencia cuando vuelve a NORMAL
+          isEmergencyMode = false;
+          selectedDevice!.systemStatus.restoreNormalOperation();
+          
+          // 🔥 RESETEAR FLAG DE ALERTA
+          _alertDialogShown = false;
+          
+          print('🟢 Modo emergencia DESACTIVADO - Estado: NORMAL');
+        }
+        
+        // También actualizar isEmergencyMode basado en el estado actual
+        // para asegurar consistencia
+        if (status != 'ALERT') {
+          isEmergencyMode = false;
         }
       } else {
         print('⚠️ Mensaje de dispositivo diferente: $deviceId vs ${selectedDevice?.deviceId}');
@@ -471,7 +502,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 15),
 
             Expanded(
-              flex: 2,
+              flex: 3, // 🔥 CAMBIAR DE 2 A 3 PARA QUE EL GRÁFICO OCUPE MÁS ESPACIO
               child: AirQualityChart(
                 gasLevelData: selectedDevice!.readings.map((r) => r.value).toList(),
                 gasLevel: selectedDevice!.lastReading?.value ?? 0,
@@ -480,37 +511,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
 
-            const SizedBox(height: 20),
-
-            // Control de sistemas
             Expanded(
               flex: 3,
-              child: SystemsControl(
-                gasValveActive: selectedDevice!.systemStatus.gasValveActive,
-                ventilationActive: selectedDevice!.systemStatus.ventilationActive,
-                doorSystemActive: selectedDevice!.systemStatus.doorSystemActive,
-                lightingSystemActive: selectedDevice!.systemStatus.lightingSystemActive,
-                isEmergencyMode: isEmergencyMode,
-                onGasValveToggle: (value) {
-                  setState(() {
-                    selectedDevice!.systemStatus.gasValveActive = value;
-                  });
-                },
-                onVentilationToggle: (value) {
-                  setState(() {
-                    selectedDevice!.systemStatus.ventilationActive = value;
-                  });
-                },
-                onDoorSystemToggle: (value) {
-                  setState(() {
-                    selectedDevice!.systemStatus.doorSystemActive = value;
-                  });
-                },
-                onLightingToggle: (value) {
-                  setState(() {
-                    selectedDevice!.systemStatus.lightingSystemActive = value;
-                  });
-                },
+              child: Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFF0F1B2A),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Estadísticas del día',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            'Nivel máximo',
+                            '${selectedDevice!.readings.isNotEmpty ? selectedDevice!.readings.map((r) => r.value).reduce((a, b) => a > b ? a : b).toStringAsFixed(1) : "0.0"}%',
+                            Icons.trending_up,
+                            Colors.red,
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            'Nivel promedio',
+                            '${selectedDevice!.readings.isNotEmpty ? (selectedDevice!.readings.map((r) => r.value).reduce((a, b) => a + b) / selectedDevice!.readings.length).toStringAsFixed(1) : "0.0"}%',
+                            Icons.show_chart,
+                            Color(0xFF4ECDC4),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            'Estado del sensor',
+                            selectedDevice!.status,
+                            Icons.sensors,
+                            _getStatusColor(selectedDevice!.status), // 🔥 USAR MÉTODO ESPECÍFICO
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            'Última lectura',
+                            '${DateTime.now().difference(selectedDevice!.lastReading?.timestamp ?? DateTime.now()).inMinutes} min',
+                            Icons.access_time,
+                            Colors.blue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -569,5 +634,59 @@ class _DashboardScreenState extends State<DashboardScreen> {
         isExpanded: true,
       ),
     );
+  }
+
+  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Color(0xFF1A2B3D),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🔥 AGREGAR ESTE MÉTODO
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'ALERT':
+        return Colors.red;
+      case 'WARNING':
+        return Colors.orange;
+      case 'NORMAL':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
   }
 }
